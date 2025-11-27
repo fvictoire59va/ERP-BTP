@@ -254,10 +254,10 @@ def create_ouvrages_panel(app_instance):
                                 with ui.row().classes('gap-1 w-32'):
                                     ui.button('Editer', on_click=lambda o=ouvrage: notify_info('Édition bientôt disponible')).props('size=sm color=primary flat')
                                     ui.button('Supprimer', on_click=lambda o=ouvrage: (
+                                        notify_success('Ouvrage supprimé'),
                                         app_instance.dm.ouvrages.remove(o),
                                         app_instance.dm.save_data(),
-                                        refresh_ouvrages_by_category(),
-                                        notify_success('Ouvrage supprimé')
+                                        refresh_ouvrages_by_category()
                                     )).props('size=sm color=negative flat')
                 
                 refresh_ouvrages_by_category()

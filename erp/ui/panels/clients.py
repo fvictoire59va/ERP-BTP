@@ -98,10 +98,10 @@ def create_clients_panel(app_instance):
                             
                             def make_delete_handler(client_id):
                                 def delete_client():
+                                    notify_success(f'Client supprimé')
                                     app_instance.dm.clients = [c for c in app_instance.dm.clients if c.id != client_id]
                                     app_instance.dm.save_data()
                                     display_clients()
-                                    notify_success(f'Client supprimé')
                                 return delete_client
                             
                             with ui.button(on_click=make_modify_handler(client.id)).props('flat').classes('themed-link hover:bg-gray-100'):

@@ -6,25 +6,19 @@ from nicegui import ui
 from typing import Callable, Optional
 from erp.config.theme import get_theme
 
-
-def hex_to_rgba(hex_color: str, alpha: float = 1.0) -> str:
-    """Convertit une couleur hex en rgba de manière sécurisée"""
-    try:
-        hex_color = hex_color.lstrip('#')
-        if len(hex_color) != 6:
-            # Couleur par défaut si format invalide
-            return f'rgba(200, 76, 60, {alpha})'
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-        return f'rgba({r}, {g}, {b}, {alpha})'
-    except ValueError:
-        # Couleur par défaut si conversion échoue
-        return f'rgba(200, 76, 60, {alpha})'
+# Flag pour s'assurer que les styles ne sont ajoutés qu'une fois
+_menu_styles_initialized = False
 
 
-# Ajouter le CSS global pour les boutons du menu
-ui.add_head_html('''
+def initialize_menu_styles():
+    """Initialise les styles CSS pour le menu (appelé une seule fois)"""
+    global _menu_styles_initialized
+    if _menu_styles_initialized:
+        return
+    _menu_styles_initialized = True
+    
+    # Ajouter le CSS global pour les boutons du menu
+    ui.add_head_html('''
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,100,0,-25" />
 <style>
     /* Material Symbols configuration */
@@ -100,6 +94,23 @@ ui.add_head_html('''
     }
 </style>
 ''')
+
+
+def hex_to_rgba(hex_color: str, alpha: float = 1.0) -> str:
+    """Convertit une couleur hex en rgba de manière sécurisée"""
+    try:
+        hex_color = hex_color.lstrip('#')
+        if len(hex_color) != 6:
+            # Couleur par défaut si format invalide
+            return f'rgba(200, 76, 60, {alpha})'
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return f'rgba({r}, {g}, {b}, {alpha})'
+    except ValueError:
+        # Couleur par défaut si conversion échoue
+        return f'rgba(200, 76, 60, {alpha})'
+
 
 # Couleur du fond de l'image (beige/crème clair)
 MENU_BG_COLOR = '#f5f1ec'  # Beige clair

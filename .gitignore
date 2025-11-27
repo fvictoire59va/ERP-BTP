@@ -37,10 +37,29 @@ env/
 # Project-specific
 # Keep pdf/ folder but ignore generated PDFs
 pdf/**/*.pdf
+pdf/**/
 
-# Keep data/ folder but ignore generated data files
+# Keep data/ folder but ignore generated data files (IMPORTANT: ne pas envoyer les données clients)
 data/**/*.json
 !data/*.example.json
+
+# PyInstaller builds (NE PAS ENVOYER sur GitHub)
+dist/
+build/
+*.spec
+build_exe.bat
+post_build.py
+run_erp.bat
+create_package.bat
+BUILD_README.md
+DEPLOYMENT.md
+
+# Package de distribution (NE PAS ENVOYER - trop gros)
+*.zip
+*.tar.gz
+*.rar
+*.7z
+ERP_BTP_v*.zip
 
 # Development
 .env

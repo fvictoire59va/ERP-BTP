@@ -166,10 +166,10 @@ def create_catalogue_panel(app_instance):
                             with ui.row().classes('gap-2 items-center'):
                                 app_instance.material_icon_button('edit', on_click=make_edit_handler(article_id))
                                 app_instance.material_icon_button('delete', on_click=lambda a=article: (
+                                    notify_success('Article supprimé'),
                                     app_instance.dm.articles.remove(a),
                                     app_instance.dm.save_data(),
-                                    refresh_articles_list(),
-                                    notify_success('Article supprimé')
+                                    refresh_articles_list()
                                 ), is_delete=True)
             
             refresh_articles_list()

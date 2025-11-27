@@ -10,12 +10,33 @@ from erp.utils.exceptions import DataPersistenceError, ResourceNotFoundError
 
 logger = get_logger(__name__)
 
+# Singleton instance
+_instance = None
+
 
 class DataManager:
     """Simple data manager: loads/saves JSON and provides lookup helpers."""
+    def __new__(cls, data_dir: Optional[Path] = None):
+        global _instance
+        if _instance is None:
+            _instance = super(DataManager, cls).__new__(cls)
+            _instance._initialized = False
+        return _instance
+    
     def __init__(self, data_dir: Optional[Path] = None):
-        # project_root doit être la racine du projet (2 niveaux au-dessus de core/)
-        project_root = Path(__file__).resolve().parent.parent.parent
+        # Éviter la réinitialisation si déjà initialisé
+        if self._initialized:
+            return
+        
+        # Gestion spéciale pour PyInstaller
+        import sys
+        if getattr(sys, 'frozen', False):
+            # Mode exécutable: utiliser le dossier de l'exécutable
+            project_root = Path(sys.executable).parent
+        else:
+            # Mode développement: racine du projet (2 niveaux au-dessus de core/)
+            project_root = Path(__file__).resolve().parent.parent.parent
+        
         self.data_dir: Path = Path(data_dir) if data_dir else project_root / DATA_DIR_NAME
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -33,6 +54,8 @@ class DataManager:
             logger.info("No existing data found, initializing demo data")
             self.init_demo_data()
             self.save_data()  # Persist demo data
+        
+        self._initialized = True
 
     def load_data(self):
         try:

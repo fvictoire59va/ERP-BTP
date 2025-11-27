@@ -1,20 +1,31 @@
 from nicegui import ui, app as nicegui_app
 from erp.ui.app import DevisApp
 from pathlib import Path
+import sys
+
+# Variable globale pour l'instance de l'app
+_app_instance = None
+_styles_initialized = False
+
+def get_app():
+    """Récupère ou crée l'instance singleton de l'application"""
+    global _app_instance
+    if _app_instance is None:
+        _app_instance = DevisApp()
+    return _app_instance
 
 
-def main():
-    # Serve static files from data and static directories
-    nicegui_app.add_static_files('/data', str(Path(__file__).parent / 'data'))
-    nicegui_app.add_static_files('/static', str(Path(__file__).parent / 'static'))
+def init_styles():
+    """Initialise les styles globaux - doit être appelé une seule fois"""
+    global _styles_initialized
+    if _styles_initialized:
+        return
+    _styles_initialized = True
     
-    app = DevisApp()
-    app.create_main_ui()
-
-
-if __name__ in {"__main__", "__mp_main__"}:
-    main()
-    # Todoist-inspired global styles with modern typography and colors
+    # Initialiser les styles du menu
+    from erp.ui.menu import initialize_menu_styles
+    initialize_menu_styles()
+    
     ui.add_head_html('''
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -236,10 +247,58 @@ if __name__ in {"__main__", "__mp_main__"}:
     </style>
     ''')
 
+
+# Définir la page AVANT tout autre code UI  
+@ui.page('/')
+def index_page():
+    """Page principale de l'application"""
+    # Initialiser les styles au premier chargement de la page
+    init_styles()
+    
+    # Créer l'interface
+    app = get_app()
+    app.create_main_ui()
+
+
+def main():
+    """Configure l'application"""
+    # Gestion des chemins pour PyInstaller
+    if getattr(sys, 'frozen', False):
+        # Mode exécutable: utiliser le dossier de l'exécutable
+        base_path = Path(sys.executable).parent
+    else:
+        # Mode développement
+        base_path = Path(__file__).parent
+    
+    # Serve static files from data and static directories
+    nicegui_app.add_static_files('/data', str(base_path / 'data'))
+    nicegui_app.add_static_files('/static', str(base_path / 'static'))
+
+
+if __name__ in {"__main__", "__mp_main__"}:
+    # Gestion du chemin pour le favicon
+    import sys
+    
+    # En mode exécutable, modifier sys.argv[0] pour éviter l'erreur runpy
+    if getattr(sys, 'frozen', False):
+        # Sauvegarder l'original
+        original_argv0 = sys.argv[0]
+        # Utiliser un fichier Python dummy pour éviter l'erreur
+        sys.argv[0] = str(Path(sys.executable).parent / '__main__.py')
+        favicon_path = Path(sys.executable).parent / 'static' / 'favicon.svg'
+    else:
+        favicon_path = Path(__file__).parent / 'static' / 'favicon.svg'
+    
+    # Appeler main() pour configurer les pages et routes
+    main()
+
+    import sys
     ui.run(
         title='Devis BTP - Todoist Design',
-        favicon=str(Path(__file__).parent / 'static' / 'favicon.svg'),
+        favicon=str(favicon_path) if favicon_path.exists() else None,
         dark=False,
         port=8080,
+        reload=not getattr(sys, 'frozen', False),  # Désactiver reload en mode exécutable
+        show=True,
     )
 
