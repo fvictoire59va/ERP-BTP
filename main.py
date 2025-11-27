@@ -294,7 +294,7 @@ if __name__ in {"__main__", "__mp_main__"}:
 
     import sys
     ui.run(
-        title='Devis BTP - Todoist Design',
+        title='ERP BTP',
         favicon=str(favicon_path) if favicon_path.exists() else None,
         dark=False,
         port=8080,
