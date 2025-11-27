@@ -1,4 +1,4 @@
-# Devis BTP - Second Œuvre
+# ERP pour le BTP - Second Œuvre
 
 Refactor minimal d'une application de gestion de devis basée sur NiceGUI.
 
