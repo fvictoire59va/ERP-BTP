@@ -96,11 +96,12 @@ def create_ouvrages_panel(app_instance):
                 with ui.card().classes('w-full shadow-none border').style('padding: 16px;'):
                     with ui.row().classes('w-full justify-between items-center mb-4'):
                         ui.label('Composants').classes('font-semibold text-lg text-gray-800')
-                        ui.button('+ Ajouter', on_click=lambda: add_composant()).props('color=primary flat size=sm')
+                        ui.button('+ Ajouter', on_click=lambda: add_composant()).classes('themed-button').props('size=sm')
                     
                     composants_list = []  # Liste pour stocker les données des composants
                     composants_container = ui.column().classes('w-full gap-2')
                     next_comp_id = {'value': 1}  # Compteur pour les IDs uniques des composants
+                    edit_mode = {'active': False, 'ouvrage_id': None}  # Mode édition
                     
                     def refresh_composants_display():
                         """Rafraîchir l'affichage des composants"""
@@ -132,16 +133,16 @@ def create_ouvrages_panel(app_instance):
                                     pu_input = ui.number(value=comp_data.get('prix_unitaire', 0.0), min=0, step=0.01).classes('w-24 comp-pu')
                                     
                                     # Mettre à jour les données quand les inputs changent
-                                    def update_comp_data(comp=comp_data):
-                                        comp['designation'] = designation_input.value
-                                        comp['quantite'] = quantite_input.value
-                                        comp['unite'] = unite_input.value
-                                        comp['prix_unitaire'] = pu_input.value
+                                    def update_comp_data(comp=comp_data, des=designation_input, qte=quantite_input, uni=unite_input, pu=pu_input):
+                                        comp['designation'] = des.value
+                                        comp['quantite'] = qte.value
+                                        comp['unite'] = uni.value
+                                        comp['prix_unitaire'] = pu.value
                                     
-                                    designation_input.on_value_change(lambda: update_comp_data())
-                                    quantite_input.on_value_change(lambda: update_comp_data())
-                                    unite_input.on_value_change(lambda: update_comp_data())
-                                    pu_input.on_value_change(lambda: update_comp_data())
+                                    designation_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input: update_comp_data(c, d, q, u, p))
+                                    quantite_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input: update_comp_data(c, d, q, u, p))
+                                    unite_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input: update_comp_data(c, d, q, u, p))
+                                    pu_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input: update_comp_data(c, d, q, u, p))
                                     
                                     def remove_this_comp(comp=comp_data):
                                         if comp in composants_list:
@@ -165,6 +166,37 @@ def create_ouvrages_panel(app_instance):
                         composants_list.append(comp_data)
                         refresh_composants_display()
                     
+                    def load_ouvrage_for_edit(ouvrage):
+                        """Charger un ouvrage dans le formulaire pour édition"""
+                        # Activer le mode édition
+                        edit_mode['active'] = True
+                        edit_mode['ouvrage_id'] = ouvrage.id
+                        
+                        # Remplir les champs du formulaire
+                        reference_input.value = ouvrage.reference
+                        designation_input.value = ouvrage.designation
+                        description_input.value = ouvrage.description
+                        categorie_select.set_value(ouvrage.categorie)
+                        unite_select.set_value(ouvrage.unite)
+                        
+                        # Charger les composants
+                        composants_list.clear()
+                        next_comp_id['value'] = 1
+                        
+                        for comp in ouvrage.composants:
+                            comp_data = {
+                                'id': next_comp_id['value'],
+                                'designation': comp.designation,
+                                'quantite': comp.quantite,
+                                'unite': comp.unite,
+                                'prix_unitaire': comp.prix_unitaire
+                            }
+                            composants_list.append(comp_data)
+                            next_comp_id['value'] += 1
+                        
+                        refresh_composants_display()
+                        notify_info(f'Édition de l\'ouvrage "{ouvrage.designation}"')
+                    
                     # Boutons d'action
                     with ui.row().classes('gap-2 mt-6 justify-end'):
                         def save_ouvrage():
@@ -172,47 +204,93 @@ def create_ouvrages_panel(app_instance):
                                 notify_error('Veuillez remplir reference et designation')
                                 return
                             
-                            # Vérifier que la référence n'existe pas déjà
-                            if any(o.reference == reference_input.value for o in app_instance.dm.ouvrages):
-                                notify_error(f'La référence "{reference_input.value}" existe déjà')
-                                return
-                            
-                            # Créer l'ouvrage (sans coefficient_marge)
-                            new_ouvrage = Ouvrage(
-                                id=max((o.id for o in app_instance.dm.ouvrages), default=0) + 1,
-                                reference=reference_input.value,
-                                designation=designation_input.value,
-                                description=description_input.value,
-                                categorie=categorie_select.value or 'platrerie',
-                                unite=unite_select.value or 'm²'
-                            )
-                            
-                            # Ajouter les composants
-                            for comp_data in composants_list:
-                                comp = ComposantOuvrage(
-                                    article_id=comp_data['id'],  # Utiliser l'ID généré automatiquement
-                                    designation=comp_data['designation'],
-                                    quantite=comp_data['quantite'],
-                                    unite=comp_data['unite'],
-                                    prix_unitaire=comp_data['prix_unitaire']
+                            if edit_mode['active']:
+                                # Mode édition - Modifier l'ouvrage existant
+                                ouvrage = next((o for o in app_instance.dm.ouvrages if o.id == edit_mode['ouvrage_id']), None)
+                                if not ouvrage:
+                                    notify_error('Ouvrage introuvable')
+                                    return
+                                
+                                # Vérifier que la référence n'est pas déjà utilisée par un autre ouvrage
+                                if any(o.reference == reference_input.value and o.id != edit_mode['ouvrage_id'] for o in app_instance.dm.ouvrages):
+                                    notify_error(f'La référence "{reference_input.value}" existe déjà')
+                                    return
+                                
+                                # Mettre à jour les propriétés
+                                ouvrage.reference = reference_input.value
+                                ouvrage.designation = designation_input.value
+                                ouvrage.description = description_input.value
+                                ouvrage.categorie = categorie_select.value or 'platrerie'
+                                ouvrage.unite = unite_select.value or 'm²'
+                                
+                                # Remplacer les composants
+                                ouvrage.composants.clear()
+                                for comp_data in composants_list:
+                                    comp = ComposantOuvrage(
+                                        article_id=comp_data['id'],
+                                        designation=comp_data['designation'],
+                                        quantite=comp_data['quantite'],
+                                        unite=comp_data['unite'],
+                                        prix_unitaire=comp_data['prix_unitaire']
+                                    )
+                                    ouvrage.composants.append(comp)
+                                
+                                app_instance.dm.save_data()
+                                
+                                # Réinitialiser le formulaire
+                                reference_input.value = ''
+                                designation_input.value = ''
+                                description_input.value = ''
+                                composants_list.clear()
+                                composants_container.clear()
+                                edit_mode['active'] = False
+                                edit_mode['ouvrage_id'] = None
+                                
+                                notify_success('Ouvrage modifié avec succès')
+                                refresh_ouvrages_by_category()
+                            else:
+                                # Mode création - Créer un nouvel ouvrage
+                                # Vérifier que la référence n'existe pas déjà
+                                if any(o.reference == reference_input.value for o in app_instance.dm.ouvrages):
+                                    notify_error(f'La référence "{reference_input.value}" existe déjà')
+                                    return
+                                
+                                # Créer l'ouvrage (sans coefficient_marge)
+                                new_ouvrage = Ouvrage(
+                                    id=max((o.id for o in app_instance.dm.ouvrages), default=0) + 1,
+                                    reference=reference_input.value,
+                                    designation=designation_input.value,
+                                    description=description_input.value,
+                                    categorie=categorie_select.value or 'platrerie',
+                                    unite=unite_select.value or 'm²'
                                 )
-                                new_ouvrage.composants.append(comp)
-                            
-                            # Ajouter à la liste et sauvegarder
-                            app_instance.dm.ouvrages.append(new_ouvrage)
-                            app_instance.dm.save_data()
-                            
-                            # Réinitialiser le formulaire
-                            reference_input.value = ''
-                            designation_input.value = ''
-                            description_input.value = ''
-                            composants_list.clear()
-                            composants_container.clear()
-                            
-                            notify_success('Ouvrage créé avec succès')
-                            refresh_ouvrages_by_category()
+                                
+                                # Ajouter les composants
+                                for comp_data in composants_list:
+                                    comp = ComposantOuvrage(
+                                        article_id=comp_data['id'],  # Utiliser l'ID généré automatiquement
+                                        designation=comp_data['designation'],
+                                        quantite=comp_data['quantite'],
+                                        unite=comp_data['unite'],
+                                        prix_unitaire=comp_data['prix_unitaire']
+                                    )
+                                    new_ouvrage.composants.append(comp)
+                                
+                                # Ajouter à la liste et sauvegarder
+                                app_instance.dm.ouvrages.append(new_ouvrage)
+                                app_instance.dm.save_data()
+                                
+                                # Réinitialiser le formulaire
+                                reference_input.value = ''
+                                designation_input.value = ''
+                                description_input.value = ''
+                                composants_list.clear()
+                                composants_container.clear()
+                                
+                                notify_success('Ouvrage créé avec succès')
+                                refresh_ouvrages_by_category()
                     
-                    ui.button('Enregistrer', on_click=save_ouvrage).classes('themed-button')
+                        ui.button('Enregistrer', on_click=save_ouvrage).classes('themed-button')
             
             # Section Liste des ouvrages existants
             with ui.card().classes('w-full shadow-sm').style('padding: 24px;'):
@@ -252,7 +330,7 @@ def create_ouvrages_panel(app_instance):
                                 ui.label(f"{ouvrage.prix_revient_unitaire:.2f}").classes('w-24 text-right font-semibold')
                                 
                                 with ui.row().classes('gap-1 w-32'):
-                                    ui.button('Editer', on_click=lambda o=ouvrage: notify_info('Édition bientôt disponible')).props('size=sm color=primary flat')
+                                    ui.button('Editer', on_click=lambda o=ouvrage: load_ouvrage_for_edit(o)).classes('themed-button').props('size=sm flat')
                                     ui.button('Supprimer', on_click=lambda o=ouvrage: (
                                         notify_success('Ouvrage supprimé'),
                                         app_instance.dm.ouvrages.remove(o),
