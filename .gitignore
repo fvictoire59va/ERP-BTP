@@ -39,9 +39,8 @@ env/
 pdf/**/*.pdf
 pdf/**/
 
-# Keep data/ folder but ignore generated data files (IMPORTANT: ne pas envoyer les données clients)
-data/**/*.json
-!data/*.example.json
+# NE PAS envoyer le dossier data/ (données clients sensibles)
+data/
 
 # PyInstaller builds (NE PAS ENVOYER sur GitHub)
 dist/
