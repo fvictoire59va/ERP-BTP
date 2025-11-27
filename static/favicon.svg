@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Fond dégradé -->
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00c48c;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00a870;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Cercle de fond -->
+  <circle cx="50" cy="50" r="50" fill="url(#grad1)"/>
+  
+  <!-- Bâtiment (représentation ERP/BTP) -->
+  <!-- Murs principaux -->
+  <g fill="white">
+    <!-- Structure principale -->
+    <rect x="30" y="35" width="40" height="50" rx="2"/>
+    
+    <!-- Fenêtres étage 1 -->
+    <rect x="36" y="43" width="8" height="8" fill="#00c48c" opacity="0.8"/>
+    <rect x="56" y="43" width="8" height="8" fill="#00c48c" opacity="0.8"/>
+    
+    <!-- Fenêtres étage 2 -->
+    <rect x="36" y="57" width="8" height="8" fill="#00c48c" opacity="0.8"/>
+    <rect x="56" y="57" width="8" height="8" fill="#00c48c" opacity="0.8"/>
+    
+    <!-- Porte -->
+    <rect x="45" y="70" width="10" height="15" fill="#00c48c" opacity="0.9"/>
+    
+    <!-- Toit (triangle) -->
+    <polygon points="30,35 50,20 70,35" fill="#00a870"/>
+  </g>
+  
+  <!-- Symbole ERP/chiffres -->
+  <text x="50" y="95" font-size="8" font-weight="bold" text-anchor="middle" fill="white" font-family="Arial, sans-serif">ERP</text>
+</svg>
