@@ -59,7 +59,8 @@ def create_liste_devis_panel(app_instance):
                         details_container = None
                         expand_btn = None
                         
-                        expand_btn = ui.button('▶').props('flat size=xs').classes('w-6')
+                        expand_btn = app_instance.material_icon_button('chevron_right', on_click=None)
+                        expand_btn.classes('w-6')
                         ui.label(current_devis.numero).classes('w-32 font-medium themed-accent')
                         ui.label(current_devis.date).classes('w-20')
                         ui.label(client_name).classes('flex-1')
@@ -77,7 +78,21 @@ def create_liste_devis_panel(app_instance):
                         ui.label(f"{current_devis.total_ht:.2f} EUR").classes('w-20 text-right text-xs')
                         ui.label(f"{current_devis.total_ttc:.2f} EUR").classes('w-20 text-right font-bold text-xs')
                         
-                        with ui.row().classes('gap-2 items-center w-32 justify-end'):
+                        with ui.row().classes('gap-2 items-center justify-end').style('min-width: 160px;'):
+                            # Bouton Créer projet (visible uniquement pour devis acceptés)
+                            if current_devis.statut == 'accepté':
+                                def make_create_projet_handler(devis_obj):
+                                    def create_projet():
+                                        from erp.ui.panels.projets import create_projet_from_devis
+                                        create_projet_from_devis(devis_obj, app_instance, table_container)
+                                    return create_projet
+                                
+                                app_instance.material_icon_button(
+                                    'engineering',
+                                    make_create_projet_handler(current_devis),
+                                    is_delete=False
+                                ).props('title="Créer un chantier"')
+                            
                             def make_modify_handler(devis_numero, devis_obj):
                                 def modify_devis():
                                     # Copier les lignes du devis sélectionné
@@ -168,14 +183,14 @@ def create_liste_devis_panel(app_instance):
                         def toggle_details(details=details_container, btn=expand_btn, state=toggle_state):
                             if state['expanded']:
                                 details.classes(add='hidden')
-                                btn.text = '▶'
+                                btn.props('icon=chevron_right')
                                 state['expanded'] = False
                             else:
                                 details.classes(remove='hidden')
-                                btn.text = '▼'
+                                btn.props('icon=expand_more')
                                 state['expanded'] = True
                         
-                        expand_btn.on_click(toggle_details)
+                        expand_btn.on('click', toggle_details)
                         
                         with details_container:
                             ui.label(f'Coefficient: {current_devis.coefficient_marge:.2f}').classes('text-xs font-semibold text-gray-700 m-0')
@@ -368,7 +383,7 @@ def create_company_panel(app_instance):
                             )
                             edit_dialog.open()
                         
-                        ui.button('Modifier', on_click=on_modify_click).props('color=primary')
+                        ui.button('Modifier', on_click=on_modify_click).classes('themed-button')
         
         # Afficher les données
         display_organisation()

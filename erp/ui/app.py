@@ -27,6 +27,7 @@ from erp.ui.panels.ouvrages import create_ouvrages_panel as panel_create_ouvrage
 from erp.ui.panels.catalogue import create_catalogue_panel as panel_create_catalogue
 from erp.ui.panels.clients import create_clients_panel as panel_create_clients
 from erp.ui.panels.parametres import create_parametres_panel as panel_create_parametres
+from erp.ui.panels.projets import render_projets_panel as panel_create_projets
 from erp.ui.panels.autres import (
     create_liste_devis_panel as panel_create_liste_devis,
     create_dashboard_panel as panel_create_dashboard,
@@ -325,6 +326,7 @@ class DevisApp:
                 ('Tableau de bord', 'Dashboard'),
                 ('Organisation', 'Organisation'),
                 ('Devis', 'Devis'),
+                ('Chantiers', 'Chantiers'),
                 ('Ouvrages', 'Ouvrages'),
                 ('Articles', 'Articles'),
                 ('Clients', 'Clients'),
@@ -340,6 +342,7 @@ class DevisApp:
                     'Tableau de bord': 'dashboard',
                     'Organisation': 'organisation',
                     'Devis': 'devis',
+                    'Chantiers': 'projets',
                     'Ouvrages': 'ouvrages',
                     'Articles': 'articles',
                     'Clients': 'clients',
@@ -381,6 +384,8 @@ class DevisApp:
                                 self.create_company_panel()
                             elif content_key == 'devis':
                                 self.create_devis_panel()
+                            elif content_key == 'projets':
+                                self.create_projets_panel()
                             elif content_key == 'ouvrages':
                                 self.create_ouvrages_panel()
                             elif content_key == 'articles':
@@ -419,10 +424,12 @@ class DevisApp:
                                                 show_content('liste')
                                         return on_tab_change
                                     
-                                    tab_selector.on_value_change(make_tab_change_handler(tab_selector))
-                                    # Afficher le premier tab par défaut
+                                    # Définir la valeur par défaut AVANT d'attacher le handler
                                     if subsections:
                                         tab_selector.value = f"{subsections[0]}_tab"
+                                    
+                                    # Attacher le handler APRÈS avoir défini la valeur initiale
+                                    tab_selector.on_value_change(make_tab_change_handler(tab_selector))
                             else:
                                 # Pas de sous-menu pour cette section
                                 ui.label('').classes('text-gray-500 text-sm')
@@ -453,6 +460,10 @@ class DevisApp:
     def create_clients_panel(self):
         """Crée le panneau de gestion des clients"""
         panel_create_clients(self)
+    
+    def create_projets_panel(self):
+        """Crée le panneau de gestion des projets"""
+        panel_create_projets(self)
 
     def create_parametres_panel(self):
         """Crée le panneau de paramètres"""

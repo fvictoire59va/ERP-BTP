@@ -96,7 +96,9 @@ def create_ouvrages_panel(app_instance):
                 with ui.card().classes('w-full shadow-none border').style('padding: 16px;'):
                     with ui.row().classes('w-full justify-between items-center mb-4'):
                         ui.label('Composants').classes('font-semibold text-lg text-gray-800')
-                        ui.button('+ Ajouter', on_click=lambda: add_composant()).classes('themed-button').props('size=sm')
+                        with ui.row().classes('gap-2'):
+                            ui.button('+ Ajouter manuellement', on_click=lambda: add_composant()).classes('themed-button').props('size=sm')
+                            ui.button('📦 Choisir dans le catalogue', on_click=lambda: add_article_from_catalogue()).classes('themed-button').props('size=sm')
                     
                     composants_list = []  # Liste pour stocker les données des composants
                     composants_container = ui.column().classes('w-full gap-2')
@@ -111,45 +113,38 @@ def create_ouvrages_panel(app_instance):
                                 ui.label('Aucun composant. Ajoutez-en un ci-dessous.').classes('text-gray-500 text-center py-4')
                                 return
                             
-                            # En-tête
-                            with ui.row().classes('w-full gap-2 p-2 bg-gray-100 rounded font-bold mb-2'):
-                                ui.label('ID Article').classes('w-20')
-                                ui.label('Désignation').classes('flex-1')
-                                ui.label('Quantité').classes('w-20 text-right')
+                            # En-tête (format style devis)
+                            with ui.row().classes('w-full gap-2 font-bold bg-gray-100 p-2 rounded'):
+                                ui.label('Article').classes('flex-1')
+                                ui.label('Qte').classes('w-16 text-right')
                                 ui.label('Unité').classes('w-16 text-center')
-                                ui.label('P.U.').classes('w-24 text-right')
-                                ui.label('Actions').classes('w-16')
-                            
-                            # Composants
+                                ui.label('P.U.').classes('w-20 text-right')
+                                ui.label('Total').classes('w-24 text-right')
+                                ui.label('Actions').classes('w-24')
+                            # Lignes composants
                             for comp_data in composants_list:
-                                with ui.row().classes('w-full gap-2 p-2 bg-gray-50 rounded mb-2 items-center'):
-                                    # Afficher l'ID auto-généré (non modifiable)
-                                    ui.label(str(comp_data['id'])).classes('w-20 font-mono text-sm')
-                                    
-                                    # Créer les inputs pour les autres champs
+                                with ui.row().classes('w-full gap-2 p-2 items-center border-b border-gray-100'):
                                     designation_input = ui.input(value=comp_data.get('designation', '')).classes('flex-1 comp-designation')
-                                    quantite_input = ui.number(value=comp_data.get('quantite', 1.0), min=0.01, step=0.1).classes('w-20 comp-qte')
-                                    unite_input = ui.input(value=comp_data.get('unite', 'm²')).classes('w-16 comp-unite')
-                                    pu_input = ui.number(value=comp_data.get('prix_unitaire', 0.0), min=0, step=0.01).classes('w-24 comp-pu')
-                                    
-                                    # Mettre à jour les données quand les inputs changent
-                                    def update_comp_data(comp=comp_data, des=designation_input, qte=quantite_input, uni=unite_input, pu=pu_input):
+                                    quantite_input = ui.number(value=comp_data.get('quantite', 1.0), min=0.01, step=0.1).classes('w-16 comp-qte text-right')
+                                    unite_input = ui.input(value=comp_data.get('unite', 'm²')).classes('w-16 comp-unite text-center')
+                                    pu_input = ui.number(value=comp_data.get('prix_unitaire', 0.0), min=0, step=0.01).classes('w-20 comp-pu text-right')
+                                    total_label = ui.label(f"{(quantite_input.value or 0) * (pu_input.value or 0):.2f}").classes('w-24 text-right font-bold')
+                                    # Mise à jour dynamique du total
+                                    def update_comp_data(comp=comp_data, des=designation_input, qte=quantite_input, uni=unite_input, pu=pu_input, total=total_label):
                                         comp['designation'] = des.value
                                         comp['quantite'] = qte.value
                                         comp['unite'] = uni.value
                                         comp['prix_unitaire'] = pu.value
-                                    
-                                    designation_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input: update_comp_data(c, d, q, u, p))
-                                    quantite_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input: update_comp_data(c, d, q, u, p))
-                                    unite_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input: update_comp_data(c, d, q, u, p))
-                                    pu_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input: update_comp_data(c, d, q, u, p))
-                                    
-                                    def remove_this_comp(comp=comp_data):
-                                        if comp in composants_list:
-                                            composants_list.remove(comp)
-                                        refresh_composants_display()
-                                    
-                                    ui.button('Retirer', on_click=remove_this_comp).props('size=sm color=negative flat')
+                                        try:
+                                            total.text = f"{(float(qte.value or 0) * float(pu.value or 0)):.2f}"
+                                        except Exception:
+                                            total.text = "0.00"
+                                    designation_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input, t=total_label: update_comp_data(c, d, q, u, p, t))
+                                    quantite_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input, t=total_label: update_comp_data(c, d, q, u, p, t))
+                                    unite_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input, t=total_label: update_comp_data(c, d, q, u, p, t))
+                                    pu_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input, t=total_label: update_comp_data(c, d, q, u, p, t))
+                                    with ui.row().classes('gap-1 w-24 justify-end'):
+                                        ui.button('Retirer', on_click=lambda comp=comp_data: (composants_list.remove(comp), refresh_composants_display()) if comp in composants_list else None).props('size=sm color=negative flat')
                     
                     def add_composant():
                         # Générer un nouvel ID unique et incrémental
@@ -165,6 +160,123 @@ def create_ouvrages_panel(app_instance):
                         }
                         composants_list.append(comp_data)
                         refresh_composants_display()
+                    
+                    def add_article_from_catalogue():
+                        """Ouvrir un dialogue pour choisir un article du catalogue"""
+                        with ui.dialog() as article_dialog, ui.card().classes('w-full max-w-4xl'):
+                            ui.label('Choisir un article du catalogue').classes('text-xl font-bold mb-4')
+                            
+                            # Conteneur pour les filtres
+                            with ui.row().classes('w-full gap-4 mb-4'):
+                                search_input = ui.input(placeholder='Rechercher (référence, désignation...)').classes('flex-1')
+                                categorie_filter = ui.select(
+                                    label='Catégorie',
+                                    options={
+                                        'toutes': 'Toutes',
+                                        'general': 'Général',
+                                        'platrerie': 'Plâtrerie',
+                                        'menuiserie_int': 'Menuiserie Int.',
+                                        'menuiserie_ext': 'Menuiserie Ext.',
+                                        'faux_plafond': 'Faux Plafond',
+                                        'agencement': 'Agencement',
+                                        'isolation': 'Isolation',
+                                        'peinture': 'Peinture'
+                                    },
+                                    value='toutes'
+                                ).classes('w-48')
+                                type_filter = ui.select(
+                                    label='Type',
+                                    options={
+                                        'tous': 'Tous',
+                                        'materiau': 'Matériau',
+                                        'fourniture': 'Fourniture',
+                                        'main_oeuvre': 'Main d\'œuvre',
+                                        'consommable': 'Consommable'
+                                    },
+                                    value='tous'
+                                ).classes('w-48')
+                            
+                            # Conteneur pour la liste des articles
+                            articles_list_container = ui.column().classes('w-full gap-0 max-h-96 overflow-y-auto')
+                            
+                            def filter_articles():
+                                """Filtrer et afficher les articles"""
+                                articles_list_container.clear()
+                                
+                                # Récupérer tous les articles
+                                articles = app_instance.dm.articles
+                                
+                                # Filtrer par catégorie
+                                if categorie_filter.value != 'toutes':
+                                    articles = [a for a in articles if getattr(a, 'categorie', 'general') == categorie_filter.value]
+                                
+                                # Filtrer par type
+                                if type_filter.value != 'tous':
+                                    articles = [a for a in articles if a.type_article == type_filter.value]
+                                
+                                # Filtrer par recherche texte
+                                if search_input.value:
+                                    search_term = search_input.value.lower()
+                                    articles = [a for a in articles if 
+                                               search_term in a.reference.lower() or 
+                                               search_term in a.designation.lower()]
+                                
+                                if not articles:
+                                    with articles_list_container:
+                                        ui.label('Aucun article trouvé').classes('text-gray-500 text-center py-8')
+                                    return
+                                
+                                with articles_list_container:
+                                    # En-tête
+                                    with ui.row().classes('w-full gap-2 p-2 bg-gray-100 rounded font-bold mb-2'):
+                                        ui.label('Référence').classes('w-32')
+                                        ui.label('Désignation').classes('flex-1')
+                                        ui.label('Type').classes('w-32')
+                                        ui.label('Unité').classes('w-20')
+                                        ui.label('Prix U.').classes('w-24 text-right')
+                                        ui.label('Action').classes('w-24')
+                                    
+                                    # Lignes d'articles
+                                    for article in articles:
+                                        with ui.row().classes('w-full gap-2 p-2 hover:bg-gray-50 items-center border-b border-gray-100'):
+                                            ui.label(article.reference).classes('w-32 font-mono text-sm')
+                                            ui.label(article.designation).classes('flex-1')
+                                            ui.label(article.type_article).classes('w-32 text-sm text-gray-600')
+                                            ui.label(article.unite).classes('w-20 text-center')
+                                            ui.label(f"{article.prix_unitaire:.2f}€").classes('w-24 text-right')
+                                            
+                                            def add_this_article(art=article):
+                                                # Ajouter l'article comme composant
+                                                comp_id = next_comp_id['value']
+                                                next_comp_id['value'] += 1
+                                                
+                                                comp_data = {
+                                                    'id': comp_id,
+                                                    'designation': art.designation,
+                                                    'quantite': 1.0,
+                                                    'unite': art.unite,
+                                                    'prix_unitaire': art.prix_unitaire
+                                                }
+                                                composants_list.append(comp_data)
+                                                refresh_composants_display()
+                                                article_dialog.close()
+                                                notify_success(f'Article "{art.designation}" ajouté')
+                                            
+                                            ui.button('Ajouter', on_click=add_this_article).classes('themed-button').props('size=sm')
+                            
+                            # Événements pour le filtrage en temps réel
+                            search_input.on_value_change(lambda: filter_articles())
+                            categorie_filter.on_value_change(lambda: filter_articles())
+                            type_filter.on_value_change(lambda: filter_articles())
+                            
+                            # Affichage initial
+                            filter_articles()
+                            
+                            # Bouton fermer
+                            with ui.row().classes('w-full justify-end mt-4'):
+                                ui.button('Fermer', on_click=article_dialog.close).props('flat')
+                        
+                        article_dialog.open()
                     
                     def load_ouvrage_for_edit(ouvrage):
                         """Charger un ouvrage dans le formulaire pour édition"""
@@ -290,7 +402,9 @@ def create_ouvrages_panel(app_instance):
                                 notify_success('Ouvrage créé avec succès')
                                 refresh_ouvrages_by_category()
                     
-                        ui.button('Enregistrer', on_click=save_ouvrage).classes('themed-button')
+                # Bouton Enregistrer en dehors du cadre des composants
+                with ui.row().classes('w-full justify-end mt-4'):
+                    ui.button('Enregistrer', on_click=save_ouvrage).classes('themed-button')
             
             # Section Liste des ouvrages existants
             with ui.card().classes('w-full shadow-sm').style('padding: 24px;'):
@@ -339,3 +453,23 @@ def create_ouvrages_panel(app_instance):
                                     )).props('size=sm color=negative flat')
                 
                 refresh_ouvrages_by_category()
+                
+                # Fonction pour afficher les composants d'un ouvrage (lecture seule)
+                def display_ouvrage_composants(composants):
+                    if not composants:
+                        ui.label('Aucun composant pour cet ouvrage.').classes('text-gray-500 text-center py-4')
+                        return
+                    with ui.column().classes('w-full'):
+                        with ui.row().classes('w-full gap-2 font-bold bg-gray-100 p-2 rounded'):
+                            ui.label('Article').classes('flex-1')
+                            ui.label('Qte').classes('w-16 text-right')
+                            ui.label('Unité').classes('w-16 text-center')
+                            ui.label('P.U.').classes('w-20 text-right')
+                            ui.label('Total').classes('w-24 text-right')
+                        for comp in composants:
+                            with ui.row().classes('w-full gap-2 items-center border-b border-gray-100').style('padding-top:2px;padding-bottom:2px;min-height:0;'):
+                                ui.label(comp.designation).classes('flex-1')
+                                ui.label(f"{comp.quantite:.2f}").classes('w-16 text-right')
+                                ui.label(comp.unite).classes('w-16 text-center')
+                                ui.label(f"{comp.prix_unitaire:.2f}").classes('w-20 text-right')
+                                ui.label(f"{comp.prix_total():.2f}").classes('w-24 text-right font-bold')

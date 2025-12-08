@@ -95,12 +95,28 @@ def generate_pdf(devis, data_manager, pdf_path: Path, company_info: dict | None 
     devis_title = ParagraphStyle('devis_title', parent=styles['Heading1'], alignment=2, fontSize=16, textColor=colors.HexColor('#1f2937'), spaceAfter=0)
     devis_text = Paragraph('<b>DEVIS</b>', devis_title)
     
-    # Create header table with only DEVIS title
+    # Add devis number below DEVIS title
+    devis_numero_style = ParagraphStyle('devis_numero', parent=styles['Normal'], alignment=2, fontSize=11, textColor=colors.HexColor('#1f2937'), spaceAfter=0)
+    devis_numero = Paragraph(f"N° {getattr(devis, 'numero', '')}", devis_numero_style)
+    
+    # Stack DEVIS and numero vertically
+    devis_info = [[devis_text], [devis_numero]]
+    devis_stack = Table(devis_info, colWidths=[None])
+    devis_stack.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    
+    # Create header table with only DEVIS title + numero
     if logo is not None:
-        header_table = Table([[logo, devis_text]], colWidths=[60*mm, None])
+        header_table = Table([[logo, devis_stack]], colWidths=[60*mm, None])
         header_table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
     else:
-        header_table = Table([[devis_text]], colWidths=[None])
+        header_table = Table([[devis_stack]], colWidths=[None])
         header_table.setStyle(TableStyle([('ALIGN', (0, 0), (0, 0), 'RIGHT')]))
     
     elems.append(header_table)

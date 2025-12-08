@@ -30,15 +30,42 @@ def create_catalogue_panel(app_instance):
                     ref_input = ui.input('Référence', placeholder='ART-001').classes('flex-1 article-reference')
                     desig_input = ui.input('Désignation', placeholder='Nom de l\'article...').classes('flex-1 article-designation')
                 
-                # Ligne 2: Description et Unité
+                # Ligne 2: Description et Type
                 with ui.row().classes('w-full gap-4'):
                     desc_input = ui.textarea('Description', placeholder='Description détaillée').classes('flex-1 article-description').props('rows=2')
+                    type_select = ui.select(
+                        label='Type',
+                        options={
+                            'materiau': 'Matériau',
+                            'fourniture': 'Fourniture',
+                            'main_oeuvre': 'Main d\'œuvre',
+                            'consommable': 'Consommable'
+                        },
+                        value='materiau'
+                    ).classes('w-48 article-type')
+                
+                # Ligne 3: Catégorie et Unité
+                with ui.row().classes('w-full gap-4'):
+                    categorie_select = ui.select(
+                        label='Catégorie',
+                        options={
+                            'general': 'Général',
+                            'platrerie': 'Plâtrerie',
+                            'menuiserie_int': 'Menuiserie Int.',
+                            'menuiserie_ext': 'Menuiserie Ext.',
+                            'faux_plafond': 'Faux Plafond',
+                            'agencement': 'Agencement',
+                            'isolation': 'Isolation',
+                            'peinture': 'Peinture'
+                        },
+                        value='general'
+                    ).classes('w-48 article-categorie')
                     unite_select = ui.select(
                         label='Unité',
-                        options={'m²': 'm²', 'ml': 'ml', 'u': 'unité', 'kg': 'kg', 'l': 'l', 'forfait': 'forfait'}
+                        options={'m²': 'm²', 'ml': 'ml', 'u': 'unité', 'h': 'heure', 'kg': 'kg', 'l': 'l', 'forfait': 'forfait'}
                     ).classes('w-32 article-unite')
                 
-                # Ligne 3: Prix unitaire
+                # Ligne 4: Prix unitaire
                 with ui.row().classes('w-full gap-4'):
                     price_input = ui.number('Prix unitaire (EUR)', value=0.0, min=0, step=0.01).classes('w-48 article-price')
                     ui.label('').classes('flex-1')  # Spacer
@@ -63,7 +90,8 @@ def create_catalogue_panel(app_instance):
                         description=desc_input.value,
                         unite=unite_select.value or 'm²',
                         prix_unitaire=price_input.value,
-                        type_article='materiau',  # Par défaut: materiau
+                        type_article=type_select.value or 'materiau',
+                        categorie=categorie_select.value or 'general',
                         fournisseur_id=0  # Par défaut: sans fournisseur
                     )
                     
@@ -75,6 +103,8 @@ def create_catalogue_panel(app_instance):
                     desig_input.value = ''
                     desc_input.value = ''
                     unite_select.value = 'm²'
+                    type_select.value = 'materiau'
+                    categorie_select.value = 'general'
                     price_input.value = 0.0
                     
                     notify_success('Article créé avec succès')
@@ -102,6 +132,8 @@ def create_catalogue_panel(app_instance):
                     with ui.row().classes('w-full gap-2 font-bold bg-gray-100 p-1 rounded'):
                         ui.label('Référence').classes('w-40')
                         ui.label('Désignation').classes('flex-1')
+                        ui.label('Type').classes('w-32 text-center')
+                        ui.label('Catégorie').classes('w-32 text-center')
                         ui.label('Unité').classes('w-20 text-center')
                         ui.label('Prix unitaire').classes('w-32 text-right')
                         ui.label('Actions').classes('w-32')
@@ -112,6 +144,8 @@ def create_catalogue_panel(app_instance):
                         with ui.row().classes('w-full gap-2 p-1 items-center hover:bg-gray-50 text-sm border-b border-gray-100'):
                             ui.label(article.reference).classes('w-40 font-mono')
                             ui.label(article.designation).classes('flex-1')
+                            ui.label(article.type_article).classes('w-32 text-center')
+                            ui.label(getattr(article, 'categorie', 'general')).classes('w-32 text-center')
                             ui.label(article.unite).classes('w-20 text-center')
                             ui.label(f"{article.prix_unitaire:.2f} EUR").classes('w-32 text-right font-semibold')
                             
@@ -142,6 +176,8 @@ def create_catalogue_panel(app_instance):
                                         art_updated.description = values.get('description', '')
                                         art_updated.unite = values.get('unité') or 'm²'
                                         art_updated.prix_unitaire = values.get('prix_unitaire_(eur)', 0)
+                                        art_updated.type_article = values.get('type') or 'materiau'
+                                        art_updated.categorie = values.get('catégorie') or 'general'
                                         
                                         app_instance.dm.save_data()
                                         refresh_articles_list()
@@ -154,7 +190,9 @@ def create_catalogue_panel(app_instance):
                                             {'type': 'input', 'label': 'Référence', 'value': art.reference, 'key': 'référence'},
                                             {'type': 'input', 'label': 'Désignation', 'value': art.designation, 'key': 'désignation'},
                                             {'type': 'textarea', 'label': 'Description', 'value': art.description, 'rows': 2, 'key': 'description'},
-                                            {'type': 'select', 'label': 'Unité', 'options': {'m²': 'm²', 'ml': 'ml', 'u': 'unité', 'kg': 'kg', 'l': 'l', 'forfait': 'forfait'}, 'value': art.unite, 'key': 'unité'},
+                                            {'type': 'select', 'label': 'Type', 'options': {'materiau': 'Matériau', 'fourniture': 'Fourniture', 'main_oeuvre': 'Main d\'œuvre', 'consommable': 'Consommable'}, 'value': art.type_article, 'key': 'type'},
+                                            {'type': 'select', 'label': 'Catégorie', 'options': {'general': 'Général', 'platrerie': 'Plâtrerie', 'menuiserie_int': 'Menuiserie Int.', 'menuiserie_ext': 'Menuiserie Ext.', 'faux_plafond': 'Faux Plafond', 'agencement': 'Agencement', 'isolation': 'Isolation', 'peinture': 'Peinture'}, 'value': getattr(art, 'categorie', 'general'), 'key': 'catégorie'},
+                                            {'type': 'select', 'label': 'Unité', 'options': {'m²': 'm²', 'ml': 'ml', 'u': 'unité', 'h': 'heure', 'kg': 'kg', 'l': 'l', 'forfait': 'forfait'}, 'value': art.unite, 'key': 'unité'},
                                             {'type': 'number', 'label': 'Prix unitaire (EUR)', 'value': art.prix_unitaire, 'min': 0, 'step': 0.01, 'key': 'prix_unitaire_(eur)'},
                                         ],
                                         on_save=save_article_update

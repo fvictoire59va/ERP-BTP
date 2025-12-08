@@ -124,6 +124,7 @@ MENU_ICONS = {
     'Filtres et étiquettes': 'label',
     'Archivé': 'archive',
     'Devis': 'description',
+    'Chantiers': 'engineering',
     'Ouvrages': 'construction',
     'Catalogue': 'inventory_2',
     'Clients': 'group',

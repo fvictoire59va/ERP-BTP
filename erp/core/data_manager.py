@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 from dataclasses import asdict
 
-from erp.core.models import Client, Fournisseur, Article, Ouvrage, ComposantOuvrage, Devis, LigneDevis, Organisation
+from erp.core.models import Client, Fournisseur, Article, Ouvrage, ComposantOuvrage, Devis, LigneDevis, Organisation, Projet, DepenseReelle
 from erp.core.constants import DATA_DIR_NAME, DATA_FILES
 from erp.utils.logger import get_logger
 from erp.utils.exceptions import DataPersistenceError, ResourceNotFoundError
@@ -45,6 +45,7 @@ class DataManager:
         self.articles: List[Article] = []
         self.ouvrages: List[Ouvrage] = []
         self.devis_list: List[Devis] = []
+        self.projets: List = []  # Will hold Projet instances
         self.organisation: Organisation = Organisation()
 
         logger.info(f"Initializing DataManager with data directory: {self.data_dir}")
@@ -65,6 +66,7 @@ class DataManager:
             self.articles = []
             self.ouvrages = []
             self.devis_list = []
+            self.projets = []
             self.organisation = Organisation()
             
             # Load organisation from organisation.json
@@ -140,6 +142,23 @@ class DataManager:
                             self.devis_list.append(Devis(**d))
                         except Exception as e:
                             logger.error(f"Error loading devis {d.get('numero', 'unknown')}: {e}", exc_info=True)
+            
+            # Load projets from projets.json
+            projets_path = self.data_dir / "projets.json"
+            if projets_path.exists():
+                with projets_path.open("r", encoding="utf-8-sig") as f:
+                    data = json.load(f)
+                    for p in data:
+                        try:
+                            # Convertir les dépenses réelles en objets DepenseReelle
+                            if "depenses_reelles" in p and p["depenses_reelles"]:
+                                p["depenses_reelles"] = [DepenseReelle(**d) for d in p["depenses_reelles"]]
+                            # Migration: convertir devis_numero (string) en devis_numeros (list)
+                            if "devis_numero" in p and "devis_numeros" not in p:
+                                p["devis_numeros"] = [p.pop("devis_numero")]
+                            self.projets.append(Projet(**p))
+                        except Exception as e:
+                            logger.error(f"Error loading projet {p.get('numero', 'unknown')}: {e}", exc_info=True)
 
         except Exception as e:
             logger.error(f"Failed to load data: {e}", exc_info=True)
@@ -170,6 +189,9 @@ class DataManager:
 
             with (self.data_dir / "devis.json").open("w", encoding="utf-8") as f:
                 json.dump([asdict(d) for d in self.devis_list], f, ensure_ascii=False, indent=2)
+            
+            with (self.data_dir / "projets.json").open("w", encoding="utf-8") as f:
+                json.dump([asdict(p) for p in self.projets], f, ensure_ascii=False, indent=2)
 
         except Exception as e:
             logger.error(f"Failed to save data: {e}", exc_info=True)
@@ -180,6 +202,12 @@ class DataManager:
         year = __import__("datetime").datetime.now().year
         count = len([d for d in self.devis_list if getattr(d, 'date', '').startswith(str(year))]) + 1
         return f"DEV-{year}-{count:04d}"
+    
+    def get_next_projet_number(self) -> str:
+        """Génère le prochain numéro de projet"""
+        year = __import__("datetime").datetime.now().year
+        count = len([p for p in self.projets if p.date_creation.startswith(str(year))]) + 1
+        return f"PROJ-{year}-{count:04d}"
 
     def get_client_by_id(self, client_id: int) -> Optional[Client]:
         """Récupère un client par son ID"""
@@ -203,6 +231,14 @@ class DataManager:
 
     def get_ouvrage_by_id(self, ouvrage_id: int) -> Optional[Ouvrage]:
         return next((o for o in self.ouvrages if o.id == ouvrage_id), None)
+    
+    def get_projet_by_id(self, projet_id: int) -> Optional[Projet]:
+        """Récupère un projet par son ID"""
+        return next((p for p in self.projets if p.id == projet_id), None)
+    
+    def get_projet_by_numero(self, numero: str) -> Optional[Projet]:
+        """Récupère un projet par son numéro"""
+        return next((p for p in self.projets if p.numero == numero), None)
 
     def get_next_ouvrage_id(self) -> int:
         return max((o.id for o in self.ouvrages), default=0) + 1

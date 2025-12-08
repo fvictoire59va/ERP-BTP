@@ -90,6 +90,7 @@ class Article:
     type_article: str  # materiau, fourniture, main_oeuvre, consommable
     fournisseur_id: int
     description: str = ""
+    categorie: str = "general"  # platrerie, menuiserie_int, menuiserie_ext, faux_plafond, agencement, isolation, peinture, general
     
     def get_display_text(self) -> str:
         """Retourne le texte d'affichage de l'article"""
@@ -219,11 +220,284 @@ class Devis:
         total_ht = self.total_ht
         total_tva = self.total_tva
         total_ttc = self.total_ttc
+        
         return {
             'ht': total_ht,
             'tva': total_tva,
             'ttc': total_ttc
         }
+    
+    def get_total_heures_main_oeuvre(self) -> float:
+        """
+        Calcule le total des heures de main d'œuvre dans le devis.
+        Parcourt toutes les lignes de type ouvrage et additionne les heures des composants de type main_oeuvre.
+        
+        Returns:
+            float: Total des heures de main d'œuvre
+        """
+        total_heures = 0.0
+        for ligne in self.lignes:
+            if ligne.type == "ouvrage" and hasattr(ligne, 'composants'):
+                for comp in ligne.composants:
+                    # Si le composant est de type main_oeuvre et unité en heures
+                    if comp.unite == 'h':
+                        total_heures += comp.quantite * ligne.quantite
+        return total_heures
+
+
+@dataclass
+class DepenseReelle:
+    """Représente une dépense réelle sur un chantier"""
+    id: int
+    type_depense: str  # 'materiau', 'main_oeuvre', 'fourniture', 'consommable'
+    designation: str
+    quantite: float
+    unite: str
+    prix_unitaire: float
+    date: str
+    article_id: int = 0  # Lien vers l'article si applicable
+    notes: str = ""
+    
+    @property
+    def prix_total(self) -> float:
+        """Calcule le prix total de la dépense"""
+        return self.quantite * self.prix_unitaire
+
+
+@dataclass
+class Projet:
+    """Un projet/chantier avec suivi prévisionnel vs réel"""
+    id: int
+    numero: str  # Numéro unique du projet (ex: PROJ-2025-0001)
+    devis_numeros: List[str]  # Liste des numéros de devis rattachés au chantier
+    client_id: int
+    date_creation: str
+    date_debut: str = ""
+    date_fin_prevue: str = ""
+    date_fin_reelle: str = ""
+    statut: str = "en attente"  # en attente, en cours, terminé, annulé
+    adresse_chantier: str = ""
+    notes: str = ""
+    depenses_reelles: List[DepenseReelle] = None  # Dépenses réelles sur le chantier
+    
+    def __post_init__(self):
+        """Initialise les listes si elles sont None"""
+        if self.depenses_reelles is None:
+            self.depenses_reelles = []
+        if isinstance(self.devis_numeros, str):
+            # Migration depuis l'ancien format avec un seul devis
+            self.devis_numeros = [self.devis_numeros]
+    
+    def get_previsionnel(self, dm) -> dict:
+        """
+        Calcule le prévisionnel en agrégeant tous les devis rattachés
+        
+        Args:
+            dm: DataManager pour récupérer les devis
+            
+        Returns:
+            dict: {
+                'total_ht': float,
+                'total_heures_mo': float,
+                'materiaux': List[{article_id, designation, quantite, unite, prix_unitaire, prix_total}],
+                'main_oeuvre': List[...],
+                'fournitures': List[...],
+                'consommables': List[...]
+            }
+        """
+        from collections import defaultdict
+        
+        # Agrégation des quantités par article_id et type
+        agregation = defaultdict(lambda: {
+            'article_id': 0,
+            'designation': '',
+            'quantite': 0.0,
+            'unite': '',
+            'prix_unitaire': 0.0,
+            'type': ''
+        })
+        
+        total_ht = 0.0
+        total_heures_mo = 0.0
+        
+        for devis_numero in self.devis_numeros:
+            devis = dm.get_devis_by_numero(devis_numero)
+            if not devis:
+                continue
+                
+            total_ht += devis.total_ht
+            
+            # Parcourir les lignes et composants
+            for ligne in devis.lignes:
+                if ligne.type == "ouvrage" and hasattr(ligne, 'composants'):
+                    for comp in ligne.composants:
+                        # Récupérer l'article pour connaître son type
+                        article = dm.get_article_by_id(comp.article_id)
+                        if not article:
+                            continue
+                        
+                        key = (comp.article_id, article.type_article)
+                        
+                        if key not in agregation:
+                            agregation[key] = {
+                                'article_id': comp.article_id,
+                                'designation': comp.designation,
+                                'quantite': 0.0,
+                                'unite': comp.unite,
+                                'prix_unitaire': comp.prix_unitaire,
+                                'type': article.type_article
+                            }
+                        
+                        # Additionner les quantités (quantité du composant * quantité de la ligne)
+                        agregation[key]['quantite'] += comp.quantite * ligne.quantite
+                        
+                        # Compter les heures de MO
+                        if article.type_article == 'main_oeuvre' and comp.unite == 'h':
+                            total_heures_mo += comp.quantite * ligne.quantite
+        
+        # Organiser par type
+        result = {
+            'total_ht': total_ht,
+            'total_heures_mo': total_heures_mo,
+            'materiaux': [],
+            'main_oeuvre': []
+        }
+        
+        for key, item in agregation.items():
+            type_article = item['type']
+            item_data = {
+                'article_id': item['article_id'],
+                'designation': item['designation'],
+                'quantite': item['quantite'],
+                'unite': item['unite'],
+                'prix_unitaire': item['prix_unitaire'],
+                'prix_total': item['quantite'] * item['prix_unitaire']
+            }
+            
+            if type_article == 'materiau':
+                result['materiaux'].append(item_data)
+            elif type_article == 'main_oeuvre':
+                result['main_oeuvre'].append(item_data)
+        
+        return result
+    
+    def get_reel(self) -> dict:
+        """
+        Calcule le réel à partir des dépenses enregistrées
+        
+        Returns:
+            dict: Structure identique à get_previsionnel
+        """
+        from collections import defaultdict
+        
+        # Agrégation par article_id et type
+        agregation = defaultdict(lambda: {
+            'article_id': 0,
+            'designation': '',
+            'quantite': 0.0,
+            'unite': '',
+            'prix_unitaire': 0.0,
+            'type': ''
+        })
+        
+        total_ht = 0.0
+        total_heures_mo = 0.0
+        
+        for depense in self.depenses_reelles:
+            key = (depense.article_id, depense.type_depense)
+            
+            if key not in agregation:
+                agregation[key] = {
+                    'article_id': depense.article_id,
+                    'designation': depense.designation,
+                    'quantite': 0.0,
+                    'unite': depense.unite,
+                    'prix_unitaire': depense.prix_unitaire,
+                    'type': depense.type_depense
+                }
+            
+            agregation[key]['quantite'] += depense.quantite
+            total_ht += depense.prix_total
+            
+            if depense.type_depense == 'main_oeuvre' and depense.unite == 'h':
+                total_heures_mo += depense.quantite
+        
+        # Organiser par type
+        result = {
+            'total_ht': total_ht,
+            'total_heures_mo': total_heures_mo,
+            'materiaux': [],
+            'main_oeuvre': []
+        }
+        
+        for key, item in agregation.items():
+            type_depense = item['type']
+            item_data = {
+                'article_id': item['article_id'],
+                'designation': item['designation'],
+                'quantite': item['quantite'],
+                'unite': item['unite'],
+                'prix_unitaire': item['prix_unitaire'],
+                'prix_total': item['quantite'] * item['prix_unitaire']
+            }
+            
+            if type_depense == 'materiau':
+                result['materiaux'].append(item_data)
+            elif type_depense == 'main_oeuvre':
+                result['main_oeuvre'].append(item_data)
+        
+        return result
+    
+    def get_ecarts(self, dm) -> dict:
+        """
+        Calcule les écarts entre prévisionnel et réel
+        
+        Returns:
+            dict: {
+                'total_ht': {'prev': float, 'reel': float, 'ecart': float, 'ecart_pct': float},
+                'total_heures_mo': {...},
+                'par_type': {
+                    'materiaux': {'prev': float, 'reel': float, 'ecart': float, 'ecart_pct': float},
+                    ...
+                }
+            }
+        """
+        prev = self.get_previsionnel(dm)
+        reel = self.get_reel()
+        
+        def calc_ecart(p, r):
+            ecart = r - p
+            ecart_pct = (ecart / p * 100) if p > 0 else 0
+            return {
+                'prev': p,
+                'reel': r,
+                'ecart': ecart,
+                'ecart_pct': ecart_pct
+            }
+        
+        # Calculer totaux par type
+        prev_totaux = {
+            'materiaux': sum(item['prix_total'] for item in prev['materiaux']),
+            'main_oeuvre': sum(item['prix_total'] for item in prev['main_oeuvre'])
+        }
+        
+        reel_totaux = {
+            'materiaux': sum(item['prix_total'] for item in reel['materiaux']),
+            'main_oeuvre': sum(item['prix_total'] for item in reel['main_oeuvre'])
+        }
+        
+        return {
+            'total_ht': calc_ecart(prev['total_ht'], reel['total_ht']),
+            'total_heures_mo': calc_ecart(prev['total_heures_mo'], reel['total_heures_mo']),
+            'par_type': {
+                'materiaux': calc_ecart(prev_totaux['materiaux'], reel_totaux['materiaux']),
+                'main_oeuvre': calc_ecart(prev_totaux['main_oeuvre'], reel_totaux['main_oeuvre'])
+            }
+        }
+    
+    def is_valid(self) -> bool:
+        """Vérifie si le projet a les informations minimales"""
+        return bool(self.numero and self.devis_numeros and self.client_id)
     
     def is_valid(self) -> bool:
         """
