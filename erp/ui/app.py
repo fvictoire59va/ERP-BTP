@@ -316,14 +316,37 @@ class DevisApp:
 
     def create_main_ui(self):
         """Cree l'interface principale"""
+        from erp.core.auth import AuthManager
+        from nicegui import app as nicegui_app
         
         with ui.header().classes('app-header items-center justify-between').style('background-color: #f5f1ec; border-bottom: 1px solid #e5e7eb;'):
             ui.label('ERP BTP').classes('title text-xl').style('color: #2c3e50;')
+            
+            # Ajouter le nom d'utilisateur et bouton de déconnexion
+            with ui.row().classes('items-center gap-4'):
+                username = nicegui_app.storage.user.get('username', 'Utilisateur')
+                ui.label(f'👤 {username}').classes('text-sm').style('color: #2c3e50;')
+                
+                def handle_logout():
+                    """Déconnecte l'utilisateur"""
+                    session_id = nicegui_app.storage.user.get('session_id')
+                    if session_id:
+                        from erp.core.data_manager import DataManager
+                        data_manager = DataManager()
+                        auth_manager = AuthManager(data_manager)
+                        auth_manager.logout(session_id)
+                    
+                    # Nettoyer le storage
+                    nicegui_app.storage.user.clear()
+                    
+                    # Rediriger vers la page de login
+                    ui.navigate.to('/login')
+                
+                ui.button('Déconnexion', on_click=handle_logout, icon='logout').classes('text-sm')
 
         with ui.row().classes('w-full').style('min-height: calc(100vh - 80px); background: var(--qonto-bg);'):
             # Menu vertical stylisé avec icônes (NOUVEAU MENU)
             menu_items = [
-                ('Tableau de bord', 'Dashboard'),
                 ('Organisation', 'Organisation'),
                 ('Devis', 'Devis'),
                 ('Chantiers', 'Chantiers'),
@@ -331,6 +354,7 @@ class DevisApp:
                 ('Articles', 'Articles'),
                 ('Clients', 'Clients'),
                 ('Paramètres', 'Paramètres'),
+                ('Tableau de bord', 'Dashboard'),
             ]
             
             current_section = {'value': 'dashboard'}

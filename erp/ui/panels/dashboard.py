@@ -86,9 +86,16 @@ def create_dashboard_panel(app_instance):
             df_principal = dataframes.get('Devis', pd.DataFrame())
             
             if not df_principal.empty:
-                # Afficher Pygwalker
+                # Afficher Pygwalker avec thème clair
                 try:
-                    pyg_html = pyg.to_html(df_principal, spec="", use_kernel_calc=True)
+                    # Utiliser to_html pour l'intégration web avec thème clair
+                    pyg_html = pyg.to_html(
+                        df_principal, 
+                        spec="", 
+                        use_kernel_calc=True,
+                        default_tab='data',
+                        appearance='light'
+                    )
                     ui.html(pyg_html, sanitize=False).style('width: 100%; height: 1200px; overflow: auto; padding: 0 24px;')
                 except Exception as e:
                     ui.label(f'Erreur Pygwalker: {e}').classes('text-red-500 text-center py-4')

@@ -60,6 +60,14 @@ _active_theme = Theme.default()
 
 def get_theme() -> Theme:
     """Retourne le thème actif"""
+    # Charger depuis le storage utilisateur si disponible
+    try:
+        from nicegui import app
+        saved_color = app.storage.user.get('theme_accent_color')
+        if saved_color and saved_color != _active_theme.accent_color:
+            _active_theme.accent_color = saved_color
+    except:
+        pass
     return _active_theme
 
 def set_theme(theme: Theme):
@@ -67,10 +75,18 @@ def set_theme(theme: Theme):
     global _active_theme
     _active_theme = theme
 
-def set_accent_color(color: str):
+def set_accent_color(color: str, save_to_storage=True):
     """Définit la couleur d'accent du thème actif"""
     global _active_theme
     _active_theme.accent_color = color
+    
+    # Sauvegarder dans le storage utilisateur si demandé
+    if save_to_storage:
+        try:
+            from nicegui import app
+            app.storage.user['theme_accent_color'] = color
+        except:
+            pass
 
 def set_theme_preset(preset_name: str):
     """Définit le thème à partir d'un préset"""

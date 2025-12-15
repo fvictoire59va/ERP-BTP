@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 from dataclasses import asdict
 
-from erp.core.models import Client, Fournisseur, Article, Ouvrage, ComposantOuvrage, Devis, LigneDevis, Organisation, Projet, DepenseReelle
+from erp.core.models import Client, Fournisseur, Article, Ouvrage, ComposantOuvrage, Devis, LigneDevis, Organisation, Projet, DepenseReelle, User
 from erp.core.constants import DATA_DIR_NAME, DATA_FILES
 from erp.utils.logger import get_logger
 from erp.utils.exceptions import DataPersistenceError, ResourceNotFoundError
@@ -47,6 +47,7 @@ class DataManager:
         self.devis_list: List[Devis] = []
         self.projets: List = []  # Will hold Projet instances
         self.organisation: Organisation = Organisation()
+        self.users: List = []  # Will hold User instances
 
         logger.info(f"Initializing DataManager with data directory: {self.data_dir}")
         
@@ -68,6 +69,7 @@ class DataManager:
             self.devis_list = []
             self.projets = []
             self.organisation = Organisation()
+            self.users = []
             
             # Load organisation from organisation.json
             org_path = self.data_dir / "organisation.json"
@@ -159,6 +161,17 @@ class DataManager:
                             self.projets.append(Projet(**p))
                         except Exception as e:
                             logger.error(f"Error loading projet {p.get('numero', 'unknown')}: {e}", exc_info=True)
+            
+            # Load users from users.json
+            users_path = self.data_dir / "users.json"
+            if users_path.exists():
+                with users_path.open("r", encoding="utf-8-sig") as f:
+                    data = json.load(f)
+                    for u in data:
+                        try:
+                            self.users.append(User.from_dict(u))
+                        except Exception as e:
+                            logger.error(f"Error loading user {u.get('username', 'unknown')}: {e}", exc_info=True)
 
         except Exception as e:
             logger.error(f"Failed to load data: {e}", exc_info=True)
@@ -192,6 +205,9 @@ class DataManager:
             
             with (self.data_dir / "projets.json").open("w", encoding="utf-8") as f:
                 json.dump([asdict(p) for p in self.projets], f, ensure_ascii=False, indent=2)
+            
+            with (self.data_dir / "users.json").open("w", encoding="utf-8") as f:
+                json.dump([u.to_dict() for u in self.users], f, ensure_ascii=False, indent=2)
 
         except Exception as e:
             logger.error(f"Failed to save data: {e}", exc_info=True)
@@ -311,3 +327,51 @@ class DataManager:
         company_file.parent.mkdir(parents=True, exist_ok=True)
         with company_file.open('w', encoding='utf-8') as f:
             json.dump(info, f, ensure_ascii=False, indent=2)
+    
+    # User management methods
+    def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Récupère un utilisateur par son ID"""
+        user = next((u for u in self.users if u.id == user_id), None)
+        if not user:
+            logger.warning(f"User not found: {user_id}")
+        return user
+    
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        """Récupère un utilisateur par son nom d'utilisateur"""
+        user = next((u for u in self.users if u.username == username), None)
+        if not user:
+            logger.debug(f"User not found by username: {username}")
+        return user
+    
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """Récupère un utilisateur par son email"""
+        user = next((u for u in self.users if u.email == email), None)
+        if not user:
+            logger.debug(f"User not found by email: {email}")
+        return user
+    
+    def add_user(self, user: User) -> None:
+        """Ajoute un nouvel utilisateur et sauvegarde"""
+        if self.get_user_by_username(user.username):
+            raise ValueError(f"Un utilisateur avec le nom '{user.username}' existe déjà")
+        if self.get_user_by_email(user.email):
+            raise ValueError(f"Un utilisateur avec l'email '{user.email}' existe déjà")
+        
+        self.users.append(user)
+        self.save_data()
+        logger.info(f"User added: {user.username}")
+    
+    def update_user(self, user: User) -> None:
+        """Met à jour un utilisateur existant et sauvegarde"""
+        existing = self.get_user_by_id(user.id)
+        if not existing:
+            raise ResourceNotFoundError(f"Utilisateur non trouvé: {user.id}")
+        
+        # Replace the user in the list
+        for i, u in enumerate(self.users):
+            if u.id == user.id:
+                self.users[i] = user
+                break
+        
+        self.save_data()
+        logger.info(f"User updated: {user.username}")

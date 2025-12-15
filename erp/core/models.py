@@ -582,3 +582,84 @@ class Projet:
         initial_length = len(self.lignes)
         self.lignes = [l for l in self.lignes if l.id != ligne_id]
         return len(self.lignes) < initial_length
+
+
+# === User Authentication Model ===
+
+import hashlib
+import secrets
+
+
+@dataclass
+class User:
+    """Utilisateur du système avec authentification"""
+    id: str
+    username: str
+    email: str
+    password_hash: str
+    salt: str
+    nom: str = ""
+    prenom: str = ""
+    role: str = "user"  # user, admin
+    active: bool = True
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    last_login: Optional[str] = None
+    dashboard_configs: List[str] = field(default_factory=list)  # Liste des noms de dashboards sauvegardés
+    
+    @staticmethod
+    def hash_password(password: str, salt: Optional[str] = None) -> tuple[str, str]:
+        """Hashe un mot de passe avec un salt
+        
+        Returns:
+            tuple: (password_hash, salt)
+        """
+        if salt is None:
+            salt = secrets.token_hex(32)
+        
+        # Utiliser SHA-256 avec le salt
+        pwd_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+        return pwd_hash, salt
+    
+    def verify_password(self, password: str) -> bool:
+        """Vérifie si le mot de passe est correct"""
+        pwd_hash, _ = self.hash_password(password, self.salt)
+        return pwd_hash == self.password_hash
+    
+    def update_last_login(self):
+        """Met à jour la date de dernière connexion"""
+        self.last_login = datetime.now().isoformat()
+    
+    def to_dict(self) -> dict:
+        """Convertit en dictionnaire pour la sérialisation"""
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'password_hash': self.password_hash,
+            'salt': self.salt,
+            'nom': self.nom,
+            'prenom': self.prenom,
+            'role': self.role,
+            'active': self.active,
+            'created_at': self.created_at,
+            'last_login': self.last_login,
+            'dashboard_configs': self.dashboard_configs
+        }
+    
+    @staticmethod
+    def from_dict(data: dict) -> 'User':
+        """Crée un User depuis un dictionnaire"""
+        return User(
+            id=data['id'],
+            username=data['username'],
+            email=data['email'],
+            password_hash=data['password_hash'],
+            salt=data['salt'],
+            nom=data.get('nom', ''),
+            prenom=data.get('prenom', ''),
+            role=data.get('role', 'user'),
+            active=data.get('active', True),
+            created_at=data.get('created_at', datetime.now().isoformat()),
+            last_login=data.get('last_login'),
+            dashboard_configs=data.get('dashboard_configs', [])
+        )
