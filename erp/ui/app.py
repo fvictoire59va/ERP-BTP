@@ -33,6 +33,8 @@ from erp.ui.panels.autres import (
     create_dashboard_panel as panel_create_dashboard,
     create_company_panel as panel_create_company
 )
+from erp.ui.panels.liste_articles import create_liste_articles_panel as panel_create_liste_articles
+from erp.ui.panels.liste_ouvrages import create_liste_ouvrages_panel as panel_create_liste_ouvrages
 
 # Helper pour créer un bouton avec la couleur du thème (utilisé comme méthode de classe uniquement)
 def apply_theme_styles():
@@ -382,6 +384,8 @@ class DevisApp:
                 # Afficher la section avec ses sous-menus
                 subsections_map = {
                     'devis': ['devis', 'liste'],
+                    'articles': ['articles', 'liste_articles'],
+                    'ouvrages': ['ouvrages', 'liste_ouvrages'],
                 }
                 subsections = subsections_map.get(section_key)
                 show_section_with_children(section_key, subsections)
@@ -420,6 +424,10 @@ class DevisApp:
                                 self.create_parametres_panel()
                             elif content_key == 'liste':
                                 self.create_liste_devis_panel()
+                            elif content_key == 'liste_articles':
+                                self.create_liste_articles_panel()
+                            elif content_key == 'liste_ouvrages':
+                                self.create_liste_ouvrages_panel()
                     
                     def show_section_with_children(section_key, subsections):
                         """Affiche la section avec ses sous-menus horizontaux"""
@@ -435,6 +443,14 @@ class DevisApp:
                                             ui.tab('devis_tab', label='Devis')
                                         elif sub_key == 'liste':
                                             ui.tab('liste_tab', label='Liste Devis')
+                                        elif sub_key == 'articles':
+                                            ui.tab('articles_tab', label='Articles')
+                                        elif sub_key == 'liste_articles':
+                                            ui.tab('liste_articles_tab', label='Liste Articles')
+                                        elif sub_key == 'ouvrages':
+                                            ui.tab('ouvrages_tab', label='Ouvrages')
+                                        elif sub_key == 'liste_ouvrages':
+                                            ui.tab('liste_ouvrages_tab', label='Liste Ouvrages')
                                     
                                     self.tab_selector = tab_selector
                                     
@@ -446,6 +462,14 @@ class DevisApp:
                                                 show_content('devis')
                                             elif current_tab == 'liste_tab':
                                                 show_content('liste')
+                                            elif current_tab == 'articles_tab':
+                                                show_content('articles')
+                                            elif current_tab == 'liste_articles_tab':
+                                                show_content('liste_articles')
+                                            elif current_tab == 'ouvrages_tab':
+                                                show_content('ouvrages')
+                                            elif current_tab == 'liste_ouvrages_tab':
+                                                show_content('liste_ouvrages')
                                         return on_tab_change
                                     
                                     # Définir la valeur par défaut AVANT d'attacher le handler
@@ -496,6 +520,14 @@ class DevisApp:
     def create_liste_devis_panel(self):
         """Cree le panneau de liste des devis"""
         panel_create_liste_devis(self)
+
+    def create_liste_articles_panel(self):
+        """Crée le panneau de liste des articles"""
+        panel_create_liste_articles(self)
+
+    def create_liste_ouvrages_panel(self):
+        """Crée le panneau de liste des ouvrages"""
+        panel_create_liste_ouvrages(self)
 
     def create_dashboard_panel(self):
         """Crée le panneau du dashboard"""

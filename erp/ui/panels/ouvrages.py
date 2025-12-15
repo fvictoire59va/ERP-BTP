@@ -30,43 +30,7 @@ def create_ouvrages_panel(app_instance):
         </style>
     ''')
     
-    with ui.row().classes('w-full gap-6').style('min-height: calc(100vh - 200px);'):
-        # Colonne gauche: Catégories
-        with ui.card().classes('w-64 shadow-none border').style('padding: 16px; height: fit-content;'):
-            ui.label('Catégories').classes('font-semibold text-lg text-gray-800 mb-4')
-            
-            categories = {
-                'platrerie': 'Plâtrerie',
-                'menuiserie_int': 'Menuiserie int.',
-                'menuiserie_ext': 'Menuiserie ext.',
-                'faux_plafond': 'Faux plafond',
-                'agencement': 'Agencement',
-                'isolation': 'Isolation',
-                'peinture': 'Peinture'
-            }
-            
-            selected_category = {'value': None}  # Pour tracker la catégorie sélectionnée
-            
-            with ui.column().classes('w-full gap-2'):
-                # Bouton "Tous"
-                def select_all_categories():
-                    selected_category['value'] = None
-                    refresh_ouvrages_by_category()
-                
-                ui.button('Tous', on_click=select_all_categories).props('size=sm').classes('w-full')
-                
-                # Boutons pour chaque catégorie
-                for cat_id, cat_label in categories.items():
-                    count = len([o for o in app_instance.dm.ouvrages if o.categorie == cat_id])
-                    
-                    def select_category(cat=cat_id):
-                        selected_category['value'] = cat
-                        refresh_ouvrages_by_category()
-                    
-                    ui.button(f"{cat_label} ({count})", on_click=select_category).props('size=sm flat').classes('w-full text-left')
-        
-        # Colonne droite: Formulaire et Liste
-        with ui.column().classes('flex-1'):
+    with ui.column().classes('w-full'):
             # Section pour ajouter un nouvel ouvrage
             with ui.card().classes('w-full shadow-sm').style('padding: 24px;'):
                 ui.label('Ajouter un nouvel ouvrage').classes('text-2xl font-bold text-gray-900 mb-6')
@@ -323,6 +287,11 @@ def create_ouvrages_panel(app_instance):
                         refresh_composants_display()
                         notify_info(f'Édition de l\'ouvrage "{ouvrage.designation}"')
                     
+                    # Vérifier s'il y a un ouvrage à charger pour édition
+                    if hasattr(app_instance, 'ouvrage_to_edit') and app_instance.ouvrage_to_edit:
+                        load_ouvrage_for_edit(app_instance.ouvrage_to_edit)
+                        app_instance.ouvrage_to_edit = None  # Nettoyer après chargement
+                    
                     # Boutons d'action
                     with ui.row().classes('gap-2 mt-6 justify-end'):
                         def save_ouvrage():
@@ -414,76 +383,7 @@ def create_ouvrages_panel(app_instance):
                                 composants_container.clear()
                                 
                                 notify_success('Ouvrage créé avec succès')
-                                refresh_ouvrages_by_category()
                     
                 # Bouton Enregistrer en dehors du cadre des composants
                 with ui.row().classes('w-full justify-end mt-4'):
                     ui.button('Enregistrer', on_click=save_ouvrage).classes('themed-button')
-            
-            # Section Liste des ouvrages existants
-            with ui.card().classes('w-full shadow-sm').style('padding: 24px;'):
-                ui.label('Ouvrages existants').classes('text-2xl font-bold text-gray-900 mb-6')
-                
-                ouvrages_container = ui.column().classes('w-full gap-0')
-                
-                def refresh_ouvrages_by_category():
-                    ouvrages_container.clear()
-                    
-                    # Filtrer les ouvrages par catégorie sélectionnée
-                    if selected_category['value']:
-                        filtered_ouvrages = [o for o in app_instance.dm.ouvrages if o.categorie == selected_category['value']]
-                    else:
-                        filtered_ouvrages = app_instance.dm.ouvrages
-                    
-                    if not filtered_ouvrages:
-                        with ouvrages_container:
-                            ui.label('Aucun ouvrage dans cette catégorie.').classes('text-gray-500 text-center py-8')
-                        return
-                    
-                    with ouvrages_container:
-                        # Headers
-                        with ui.row().classes('w-full gap-2 font-bold bg-gray-100 p-1 rounded'):
-                            ui.label('Reference').classes('w-40')
-                            ui.label('Designation').classes('flex-1')
-                            ui.label('Catégorie').classes('w-32')
-                            ui.label('Prix revient').classes('w-24 text-right')
-                            ui.label('Actions').classes('w-32')
-                        
-                        # Rows
-                        for ouvrage in filtered_ouvrages:
-                            with ui.row().classes('w-full gap-2 p-1 items-center hover:bg-gray-50 text-sm border-b border-gray-100'):
-                                ui.label(ouvrage.reference).classes('w-40 font-mono')
-                                ui.label(ouvrage.designation).classes('flex-1')
-                                ui.label(ouvrage.categorie).classes('w-32 text-gray-600')
-                                ui.label(f"{ouvrage.prix_revient_unitaire:.2f}").classes('w-24 text-right font-semibold')
-                                
-                                with ui.row().classes('gap-1 w-32'):
-                                    ui.button(icon='edit', on_click=lambda o=ouvrage: load_ouvrage_for_edit(o)).props('flat dense').classes('text-blue-600')
-                                    ui.button(icon='delete', on_click=lambda o=ouvrage: (
-                                        notify_success('Ouvrage supprimé'),
-                                        app_instance.dm.ouvrages.remove(o),
-                                        app_instance.dm.save_data(),
-                                        refresh_ouvrages_by_category()
-                                    )).props('flat dense color=negative').classes('text-red-600')
-                
-                refresh_ouvrages_by_category()
-                
-                # Fonction pour afficher les composants d'un ouvrage (lecture seule)
-                def display_ouvrage_composants(composants):
-                    if not composants:
-                        ui.label('Aucun composant pour cet ouvrage.').classes('text-gray-500 text-center py-4')
-                        return
-                    with ui.column().classes('w-full'):
-                        with ui.row().classes('w-full gap-2 font-bold bg-gray-100 p-2 rounded'):
-                            ui.label('Article').classes('flex-1')
-                            ui.label('Qte').classes('w-16 text-right')
-                            ui.label('Unité').classes('w-16 text-center')
-                            ui.label('P.U.').classes('w-20 text-right')
-                            ui.label('Total').classes('w-24 text-right')
-                        for comp in composants:
-                            with ui.row().classes('w-full gap-2 items-center border-b border-gray-100').style('padding-top:2px;padding-bottom:2px;min-height:0;'):
-                                ui.label(comp.designation).classes('flex-1')
-                                ui.label(f"{comp.quantite:.2f}").classes('w-16 text-right')
-                                ui.label(comp.unite).classes('w-16 text-center')
-                                ui.label(f"{comp.prix_unitaire:.2f}").classes('w-20 text-right')
-                                ui.label(f"{comp.prix_total():.2f}").classes('w-24 text-right font-bold')
