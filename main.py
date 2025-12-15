@@ -416,6 +416,16 @@ if __name__ in {"__main__", "__mp_main__"}:
 
     import sys
     import secrets
+    import logging
+    
+    # Filtrer les warnings NiceGUI non pertinents
+    class NiceGUIWarningFilter(logging.Filter):
+        def filter(self, record):
+            msg = record.getMessage()
+            return '.js.map not found' not in msg and '.well-known/' not in msg
+    
+    nicegui_logger = logging.getLogger('nicegui')
+    nicegui_logger.addFilter(NiceGUIWarningFilter())
     
     # Générer ou charger le secret pour le storage
     storage_secret_file = Path(__file__).parent / 'data' / '.storage_secret'

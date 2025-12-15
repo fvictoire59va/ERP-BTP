@@ -35,6 +35,7 @@ from erp.ui.panels.autres import (
 )
 from erp.ui.panels.liste_articles import create_liste_articles_panel as panel_create_liste_articles
 from erp.ui.panels.liste_ouvrages import create_liste_ouvrages_panel as panel_create_liste_ouvrages
+from erp.ui.panels.editeur_devis import create_editeur_devis_panel as panel_create_editeur_devis
 
 # Helper pour créer un bouton avec la couleur du thème (utilisé comme méthode de classe uniquement)
 def apply_theme_styles():
@@ -355,6 +356,7 @@ class DevisApp:
                 ('Ouvrages', 'Ouvrages'),
                 ('Articles', 'Articles'),
                 ('Clients', 'Clients'),
+                ('Éditeur', 'Éditeur'),
                 ('Paramètres', 'Paramètres'),
                 ('Tableau de bord', 'Dashboard'),
             ]
@@ -372,6 +374,7 @@ class DevisApp:
                     'Ouvrages': 'ouvrages',
                     'Articles': 'articles',
                     'Clients': 'clients',
+                    'Éditeur': 'editeur',
                     'Paramètres': 'parametres',
                 }
                 
@@ -386,6 +389,7 @@ class DevisApp:
                     'devis': ['devis', 'liste'],
                     'articles': ['articles', 'liste_articles'],
                     'ouvrages': ['ouvrages', 'liste_ouvrages'],
+                    'editeur': ['editeur_devis'],
                 }
                 subsections = subsections_map.get(section_key)
                 show_section_with_children(section_key, subsections)
@@ -428,6 +432,10 @@ class DevisApp:
                                 self.create_liste_articles_panel()
                             elif content_key == 'liste_ouvrages':
                                 self.create_liste_ouvrages_panel()
+                            elif content_key == 'editeur_devis':
+                                self.create_editeur_devis_panel()
+                            elif content_key == 'editeur':
+                                self.create_editeur_devis_panel()
                     
                     def show_section_with_children(section_key, subsections):
                         """Affiche la section avec ses sous-menus horizontaux"""
@@ -451,6 +459,8 @@ class DevisApp:
                                             ui.tab('ouvrages_tab', label='Ouvrages')
                                         elif sub_key == 'liste_ouvrages':
                                             ui.tab('liste_ouvrages_tab', label='Liste Ouvrages')
+                                        elif sub_key == 'editeur_devis':
+                                            ui.tab('editeur_devis_tab', label='Éditeur de mise en forme')
                                     
                                     self.tab_selector = tab_selector
                                     
@@ -470,6 +480,8 @@ class DevisApp:
                                                 show_content('ouvrages')
                                             elif current_tab == 'liste_ouvrages_tab':
                                                 show_content('liste_ouvrages')
+                                            elif current_tab == 'editeur_devis_tab':
+                                                show_content('editeur_devis')
                                         return on_tab_change
                                     
                                     # Définir la valeur par défaut AVANT d'attacher le handler
@@ -536,3 +548,7 @@ class DevisApp:
     def create_company_panel(self):
         """Cree le panneau de gestion de l'organisation"""
         panel_create_company(self)
+
+    def create_editeur_devis_panel(self):
+        """Crée le panneau éditeur de mise en forme des devis"""
+        panel_create_editeur_devis(self)

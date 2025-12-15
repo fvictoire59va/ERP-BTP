@@ -11,6 +11,18 @@ from typing import Optional
 from erp.core.constants import APP_NAME, LOGS_DIR_NAME
 
 
+class NiceGUIWarningFilter(logging.Filter):
+    """Filtre pour supprimer les warnings NiceGUI non pertinents"""
+    
+    def filter(self, record):
+        # Filtrer les messages contenant .js.map ou .well-known
+        if '.js.map not found' in record.getMessage():
+            return False
+        if '.well-known/' in record.getMessage():
+            return False
+        return True
+
+
 # Global logger cache
 _loggers = {}
 
@@ -60,6 +72,7 @@ def setup_logger(
         console_handler = logging.StreamHandler()
         console_handler.setLevel(level)
         console_handler.setFormatter(formatter)
+        console_handler.addFilter(NiceGUIWarningFilter())
         logger.addHandler(console_handler)
     
     # File handler

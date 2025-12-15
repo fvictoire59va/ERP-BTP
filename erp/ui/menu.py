@@ -128,6 +128,7 @@ MENU_ICONS = {
     'Ouvrages': 'construction',
     'Catalogue': 'inventory_2',
     'Clients': 'group',
+    'Éditeur': 'edit_document',
     'Paramètres': 'settings',
     'Dashboard': 'dashboard',
     'Tableau de bord': 'dashboard',
