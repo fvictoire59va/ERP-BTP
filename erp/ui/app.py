@@ -371,8 +371,8 @@ class DevisApp:
                 horizontal_menu_container = ui.row().classes('w-full bg-white shadow-sm items-center').style('border-bottom: 1px solid #e0e0e0; padding: 12px 24px; min-height: 50px;')
                 
                 # Conteneur pour le contenu principal
-                with ui.column().classes('flex-1 overflow-y-auto').style('padding: 0; background: var(--qonto-bg);'):
-                    content_container = ui.column().classes('w-full')
+                with ui.column().classes('flex-1 overflow-y-auto').style('padding: 0; background: var(--qonto-bg); width: 100%;'):
+                    content_container = ui.column().classes('w-full').style('padding: 0; margin: 0; width: 100%;')
                     
                     def show_content(content_key):
                         """Affiche le contenu de la section"""

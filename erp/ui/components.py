@@ -82,6 +82,30 @@ def create_select_field(
     ).classes(f'{width_class} {select_class}')
 
 
+def create_date_field(
+    label: str,
+    value: str = '',
+    input_class: str = '',
+    width_class: str = 'flex-1',
+    **kwargs
+) -> ui.element:
+    """Crée un champ date homogénéisé avec date picker"""
+    date_input = ui.input(label, value=value).classes(f'{width_class} {input_class}')
+    with date_input.add_slot('append'):
+        ui.icon('event').classes('cursor-pointer')
+    
+    # Créer le menu avec le date picker
+    with ui.menu().props('no-parent-event') as menu:
+        with ui.date(value=value).bind_value(date_input).props('mask="YYYY-MM-DD"') as date_picker:
+            # Fermer le menu après sélection
+            date_picker.on('update:model-value', lambda: menu.close())
+    
+    # Ouvrir le menu au clic sur l'icône ou l'input
+    date_input.on('click', menu.open)
+    
+    return date_input
+
+
 # ============================================================================
 # DIALOGS RÉUTILISABLES
 # ============================================================================
@@ -154,6 +178,13 @@ def create_edit_dialog(
                             value=field.get('value', 0),
                             min_val=field.get('min', 0),
                             step=field.get('step', 0.01),
+                            input_class=field_class,
+                            width_class='w-full'
+                        )
+                    elif field_type == 'date':
+                        field_inputs[field_key] = create_date_field(
+                            field_label,
+                            value=field.get('value', ''),
                             input_class=field_class,
                             width_class='w-full'
                         )

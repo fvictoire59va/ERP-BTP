@@ -18,6 +18,12 @@ def create_projet_from_devis(devis, app_instance, container):
         notify_warning("Seuls les devis acceptés peuvent être convertis en chantiers")
         return
     
+    # Vérifier si le devis est déjà rattaché à un chantier
+    chantier_avec_devis = next((p for p in dm.projets if devis.numero in p.devis_numeros), None)
+    if chantier_avec_devis:
+        notify_warning(f"Le devis {devis.numero} est déjà rattaché au chantier {chantier_avec_devis.numero}")
+        return
+    
     # Récupérer le client
     client = dm.get_client_by_id(devis.client_id)
     if not client:
@@ -26,7 +32,7 @@ def create_projet_from_devis(devis, app_instance, container):
     
     adresse_chantier = f"{client.adresse}\n{client.cp} {client.ville}"
     
-    # Chercher un chantier existant pour ce client et cette adresse
+    # Chercher un chantier existant pour ce client et cette adresse (sans ce devis)
     chantiers_existants = [
         p for p in dm.projets 
         if p.client_id == devis.client_id 
@@ -78,9 +84,13 @@ def attach_to_existing(devis, chantier, dialog, app_instance, container):
     """Rattache un devis à un chantier existant"""
     dm = DataManager()
     
-    # Vérifier que le devis n'est pas déjà rattaché
-    if devis.numero in chantier.devis_numeros:
-        notify_warning(f"Le devis {devis.numero} est déjà rattaché à ce chantier")
+    # Vérifier que le devis n'est pas déjà rattaché à un autre chantier
+    chantier_avec_devis = next((p for p in dm.projets if devis.numero in p.devis_numeros), None)
+    if chantier_avec_devis:
+        if chantier_avec_devis.id == chantier.id:
+            notify_warning(f"Le devis {devis.numero} est déjà rattaché à ce chantier")
+        else:
+            notify_warning(f"Le devis {devis.numero} est déjà rattaché au chantier {chantier_avec_devis.numero}")
         dialog.close()
         return
     
@@ -738,6 +748,12 @@ def add_devis_to_projet(projet, devis_numero, dm, refresh_callback, app_instance
     
     if devis_numero in projet.devis_numeros:
         notify_warning("Ce devis est déjà rattaché à ce chantier")
+        return
+    
+    # Vérifier si le devis est déjà rattaché à un autre chantier
+    chantier_avec_devis = next((p for p in dm.projets if devis_numero in p.devis_numeros), None)
+    if chantier_avec_devis:
+        notify_warning(f"Le devis {devis_numero} est déjà rattaché au chantier {chantier_avec_devis.numero}")
         return
     
     projet_obj = dm.get_projet_by_id(projet.id)

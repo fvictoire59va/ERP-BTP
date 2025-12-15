@@ -1,2 +1,4 @@
 nicegui
 reportlab
+pandas
+pygwalker

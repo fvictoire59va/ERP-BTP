@@ -16,6 +16,20 @@ def create_ouvrages_panel(app_instance):
         app_instance: Instance de DevisApp contenant dm et autres état
     """
     
+    # Ajouter le style CSS global pour masquer les flèches des champs number
+    ui.add_head_html('''
+        <style>
+            .no-spinner input[type=number]::-webkit-inner-spin-button,
+            .no-spinner input[type=number]::-webkit-outer-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+            }
+            .no-spinner input[type=number] {
+                -moz-appearance: textfield;
+            }
+        </style>
+    ''')
+    
     with ui.row().classes('w-full gap-6').style('min-height: calc(100vh - 200px);'):
         # Colonne gauche: Catégories
         with ui.card().classes('w-64 shadow-none border').style('padding: 16px; height: fit-content;'):
@@ -123,11 +137,11 @@ def create_ouvrages_panel(app_instance):
                                 ui.label('Actions').classes('w-24')
                             # Lignes composants
                             for comp_data in composants_list:
-                                with ui.row().classes('w-full gap-2 p-2 items-center border-b border-gray-100'):
-                                    designation_input = ui.input(value=comp_data.get('designation', '')).classes('flex-1 comp-designation')
-                                    quantite_input = ui.number(value=comp_data.get('quantite', 1.0), min=0.01, step=0.1).classes('w-16 comp-qte text-right')
-                                    unite_input = ui.input(value=comp_data.get('unite', 'm²')).classes('w-16 comp-unite text-center')
-                                    pu_input = ui.number(value=comp_data.get('prix_unitaire', 0.0), min=0, step=0.01).classes('w-20 comp-pu text-right')
+                                with ui.row().classes('w-full gap-2 py-1 px-2 items-center border-b border-gray-100'):
+                                    designation_input = ui.input(value=comp_data.get('designation', '')).classes('flex-1 comp-designation').props('dense')
+                                    quantite_input = ui.number(value=comp_data.get('quantite', 1.0), min=0.01, step=0.1).classes('w-16 comp-qte text-right no-spinner').props('dense')
+                                    unite_input = ui.input(value=comp_data.get('unite', 'm²')).classes('w-16 comp-unite text-center').props('dense')
+                                    pu_input = ui.number(value=comp_data.get('prix_unitaire', 0.0), min=0, step=0.01).classes('w-20 comp-pu text-right no-spinner').props('dense')
                                     total_label = ui.label(f"{(quantite_input.value or 0) * (pu_input.value or 0):.2f}").classes('w-24 text-right font-bold')
                                     # Mise à jour dynamique du total
                                     def update_comp_data(comp=comp_data, des=designation_input, qte=quantite_input, uni=unite_input, pu=pu_input, total=total_label):
@@ -144,7 +158,7 @@ def create_ouvrages_panel(app_instance):
                                     unite_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input, t=total_label: update_comp_data(c, d, q, u, p, t))
                                     pu_input.on_value_change(lambda e, c=comp_data, d=designation_input, q=quantite_input, u=unite_input, p=pu_input, t=total_label: update_comp_data(c, d, q, u, p, t))
                                     with ui.row().classes('gap-1 w-24 justify-end'):
-                                        ui.button('Retirer', on_click=lambda comp=comp_data: (composants_list.remove(comp), refresh_composants_display()) if comp in composants_list else None).props('size=sm color=negative flat')
+                                        ui.button(icon='delete', on_click=lambda comp=comp_data: (composants_list.remove(comp), refresh_composants_display()) if comp in composants_list else None).props('flat dense color=negative').classes('text-red-600')
                     
                     def add_composant():
                         # Générer un nouvel ID unique et incrémental
@@ -444,13 +458,13 @@ def create_ouvrages_panel(app_instance):
                                 ui.label(f"{ouvrage.prix_revient_unitaire:.2f}").classes('w-24 text-right font-semibold')
                                 
                                 with ui.row().classes('gap-1 w-32'):
-                                    ui.button('Editer', on_click=lambda o=ouvrage: load_ouvrage_for_edit(o)).classes('themed-button').props('size=sm flat')
-                                    ui.button('Supprimer', on_click=lambda o=ouvrage: (
+                                    ui.button(icon='edit', on_click=lambda o=ouvrage: load_ouvrage_for_edit(o)).props('flat dense').classes('text-blue-600')
+                                    ui.button(icon='delete', on_click=lambda o=ouvrage: (
                                         notify_success('Ouvrage supprimé'),
                                         app_instance.dm.ouvrages.remove(o),
                                         app_instance.dm.save_data(),
                                         refresh_ouvrages_by_category()
-                                    )).props('size=sm color=negative flat')
+                                    )).props('flat dense color=negative').classes('text-red-600')
                 
                 refresh_ouvrages_by_category()
                 
