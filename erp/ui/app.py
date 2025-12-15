@@ -357,8 +357,8 @@ class DevisApp:
                 ('Articles', 'Articles'),
                 ('Clients', 'Clients'),
                 ('Éditeur', 'Éditeur'),
-                ('Paramètres', 'Paramètres'),
                 ('Tableau de bord', 'Dashboard'),
+                ('Paramètres', 'Paramètres'),
             ]
             
             current_section = {'value': 'dashboard'}

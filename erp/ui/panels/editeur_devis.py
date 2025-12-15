@@ -139,8 +139,22 @@ def create_editeur_devis_panel(app_instance):
     </style>
     ''')
     
+    # Variable pour mémoriser le template actuellement chargé (déclarée en dehors)
+    current_template_name = {'value': None}
+    current_template_label_ref = {'label': None}
+    
     with ui.card().classes('w-full shadow-sm').style('padding: 24px; min-height: 800px; width: 100%;'):
         ui.label('Éditeur de mise en forme du devis').classes('text-3xl font-bold text-gray-900 mb-6')
+        
+        # Barre d'actions en haut
+        with ui.row().classes('w-full items-center justify-between mb-6 p-4').style('background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;'):
+            # Indicateur de modèle actuel à gauche
+            with ui.row().classes('items-center gap-2'):
+                ui.icon('label', size='sm').classes('text-gray-500')
+                current_template_label_ref['label'] = ui.label('Aucun modèle chargé').classes('text-sm text-gray-600 italic')
+            
+            # Placeholder pour les boutons (seront ajoutés après définition des fonctions)
+            actions_row = ui.row().classes('gap-2')
         
         # Conteneur principal avec 2 colonnes
         with ui.row().classes('w-full gap-6').style('min-height: 700px; align-items: flex-start;'):
@@ -158,9 +172,11 @@ def create_editeur_devis_panel(app_instance):
                         {'type': 'client', 'icon': 'person', 'label': 'Adresse client'},
                         {'type': 'infos_devis', 'icon': 'info', 'label': 'Infos devis'},
                         {'type': 'tableau_ouvrages', 'icon': 'table_chart', 'label': 'Tableau ouvrages'},
+                        {'type': 'objet', 'icon': 'subject', 'label': 'Objet'},
                         {'type': 'totaux', 'icon': 'calculate', 'label': 'Totaux'},
                         {'type': 'conditions', 'icon': 'gavel', 'label': 'Conditions'},
                         {'type': 'signature', 'icon': 'draw', 'label': 'Signature'},
+                        {'type': 'logo', 'icon': 'image', 'label': 'Logo'},
                     ]
                     
                     palette_container = ui.element('div').classes('w-full').style('display: flex; flex-direction: column; gap: 8px; user-select: none;')
@@ -181,17 +197,7 @@ def create_editeur_devis_panel(app_instance):
                     with palette_container:
                         ui.html(palette_html, sanitize=False)
                     
-                    ui.separator().classes('my-4')
-                    
-                    # Actions
-                    ui.label('Actions').classes('text-lg font-bold mb-3')
-                    
-                    # Variable pour mémoriser le template actuellement chargé
-                    current_template_name = {'value': None}
-                    
-                    # Afficher le nom du template actuel
-                    current_template_label = ui.label('Aucun modèle chargé').classes('text-sm text-gray-600 mb-3 italic')
-                    
+                    # Définir les fonctions pour les actions
                     async def save_template():
                         """Sauvegarder la présentation du devis"""
                         result = await ui.run_javascript('window.saveTemplate()', timeout=5)
@@ -238,7 +244,7 @@ def create_editeur_devis_panel(app_instance):
                                             # Synchroniser avec app.storage pour compatibilité
                                             app.storage.user['devis_templates'] = templates
                                             current_template_name['value'] = template_name.value
-                                            current_template_label.text = f'📝 Modèle: {template_name.value}'
+                                            current_template_label_ref['label'].text = f'Modèle: {template_name.value}'
                                             notify_success(f'Présentation "{template_name.value}" sauvegardée ! ({len(result["blocks"])} blocs)')
                                         else:
                                             notify_error('Erreur lors de la sauvegarde')
@@ -276,7 +282,7 @@ def create_editeur_devis_panel(app_instance):
                                 await ui.run_javascript(f'window.loadTemplate({json.dumps(template_data)})', timeout=5)
                                 # Mémoriser le template chargé
                                 current_template_name['value'] = template_data['name']
-                                current_template_label.text = f'📝 Modèle: {template_data["name"]}'
+                                current_template_label_ref['label'].text = f'Modèle: {template_data["name"]}'
                                 notify_success(f'Présentation "{template_data["name"]}" chargée ! ({len(template_data["blocks"])} blocs)')
                                 load_dialog.close()
                             
@@ -341,7 +347,7 @@ def create_editeur_devis_panel(app_instance):
                                     if save_templates_to_file(templates):
                                         app.storage.user['devis_templates'] = templates
                                         current_template_name['value'] = template_name.value
-                                        current_template_label.text = f'📝 Modèle: {template_name.value}'
+                                        current_template_label_ref['label'].text = f'Modèle: {template_name.value}'
                                         notify_success(f'Présentation "{template_name.value}" sauvegardée ! ({len(result["blocks"])} blocs)')
                                     else:
                                         notify_error('Erreur lors de la sauvegarde')
@@ -356,19 +362,396 @@ def create_editeur_devis_panel(app_instance):
                     def new_template():
                         """Créer un nouveau modèle (efface le lien avec le modèle actuel)"""
                         current_template_name['value'] = None
-                        current_template_label.text = 'Aucun modèle chargé'
+                        current_template_label_ref['label'].text = 'Aucun modèle chargé'
                         ui.run_javascript('window.clearAll()')
                         notify_info('Nouveau modèle créé')
                     
-                    ui.button('💾 Enregistrer', on_click=save_template).props('flat color=primary').classes('w-full justify-start')
-                    ui.button('💾 Enregistrer sous...', on_click=save_as_template).props('flat color=primary').classes('w-full justify-start')
-                    ui.button('📂 Charger', on_click=load_template).props('flat').classes('w-full justify-start')
-                    ui.button('📄 Nouveau', on_click=new_template).props('flat').classes('w-full justify-start')
-                    ui.button('🗑️ Tout effacer', on_click=lambda: ui.run_javascript('window.clearAll()')).props('flat color=negative').classes('w-full justify-start')
+                    async def select_logo_for_block(block_id: str):
+                        """Sélectionner un fichier PNG depuis le dossier static"""
+                        from pathlib import Path
+                        import os
+                        
+                        # Lister les fichiers PNG dans static
+                        static_dir = Path('static')
+                        png_files = []
+                        if static_dir.exists():
+                            png_files = [f.name for f in static_dir.glob('*.png')]
+                        
+                        if not png_files:
+                            notify_error('Aucun fichier PNG trouvé dans le dossier static')
+                            return
+                        
+                        # Dialog pour sélectionner l'image
+                        with ui.dialog() as logo_dialog, ui.card().classes('w-96'):
+                            ui.label('Sélectionner un logo').classes('text-lg font-bold mb-4')
+                            
+                            selected_file = {'value': None}
+                            
+                            with ui.column().classes('w-full gap-2'):
+                                for png_file in sorted(png_files):
+                                    file_path = f'/static/{png_file}'
+                                    with ui.row().classes('w-full items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer rounded').style('border: 1px solid #e5e7eb;'):
+                                        # Miniature de l'image
+                                        ui.image(file_path).classes('w-16 h-16 object-contain')
+                                        ui.label(png_file).classes('flex-1')
+                                        ui.button(
+                                            icon='check',
+                                            on_click=lambda f=file_path: [
+                                                selected_file.update({'value': f}),
+                                                logo_dialog.close()
+                                            ]
+                                        ).props('flat color=primary size=sm')
+                            
+                            ui.button('Annuler', on_click=logo_dialog.close).props('flat').classes('mt-4')
+                        
+                        logo_dialog.open()
+                        await logo_dialog
+                        
+                        # Appliquer l'image au bloc
+                        if selected_file['value']:
+                            ui.run_javascript(f'''
+                                const block = document.querySelector('[data-block-id="{block_id}"]');
+                                if (block) {{
+                                    block.dataset.logoPath = '{selected_file["value"]}';
+                                    block.innerHTML = '<img src="{selected_file["value"]}" style="width: 100%; height: 100%; object-fit: contain;" />';
+                                }}
+                            ''')
+                            notify_success(f'Logo appliqué : {selected_file["value"].split("/")[-1]}')
+                    
+                    # Exposer la fonction pour JavaScript
+                    ui.on('select_logo_for_block', lambda e: select_logo_for_block(e.args))
+                    
+                    async def preview_pdf():
+                        """Générer un aperçu PDF du devis avec données de démo"""
+                        # Capturer l'état actuel des blocs
+                        result = await ui.run_javascript('window.saveTemplate()', timeout=5)
+                        
+                        if not result or not result.get('blocks'):
+                            notify_error('Aucun bloc à prévisualiser')
+                            return
+                        
+                        # Utiliser des données de démo
+                        org = app_instance.dm.organisation
+                        demo_client = app_instance.dm.clients[0] if app_instance.dm.clients else None
+                        demo_devis = app_instance.dm.devis_list[0] if app_instance.dm.devis_list else None
+                        
+                        # Obtenir le client associé au devis
+                        client = None
+                        if demo_devis:
+                            client = app_instance.dm.get_client_by_id(demo_devis.client_id)
+                        elif demo_client:
+                            client = demo_client
+                        
+                        async def generate_pdf_with_demo():
+                            """Générer le PDF avec le premier devis disponible ou des données de démo"""
+                            from reportlab.lib.pagesizes import A4
+                            from reportlab.lib.units import mm
+                            from reportlab.pdfgen import canvas
+                            from reportlab.lib import colors
+                            from datetime import datetime
+                            from pathlib import Path
+                            import os
+                            
+                            # Utiliser le premier devis disponible ou créer des données de démo
+                            if demo_devis:
+                                selected = demo_devis
+                                pdf_client = app_instance.dm.get_client_by_id(selected.client_id)
+                            else:
+                                # Créer un objet de démo
+                                from erp.core.models import Devis
+                                selected = Devis(
+                                    numero="DEV-2025-DEMO",
+                                    date=datetime.now().strftime('%Y-%m-%d'),
+                                    client_id=demo_client.id if demo_client else 0,
+                                    objet="Travaux de rénovation",
+                                    lignes=[],
+                                    coefficient_marge=1.35,
+                                    tva=20.0,
+                                    validite=30
+                                )
+                                pdf_client = demo_client
+                            
+                            # Créer le dossier pour le client
+                            pdf_dir = Path(__file__).parent.parent.parent / 'pdf'
+                            if pdf_client:
+                                client_dir = pdf_dir / pdf_client.nom.replace(' ', '_')
+                            else:
+                                client_dir = pdf_dir / 'Inconnu'
+                            client_dir.mkdir(parents=True, exist_ok=True)
+                            
+                            # Nom du fichier PDF
+                            pdf_filename = f"Devis_{selected.numero.replace('/', '_')}.pdf"
+                            pdf_path = client_dir / pdf_filename
+                            
+                            try:
+                                # Créer le PDF avec ReportLab
+                                c = canvas.Canvas(str(pdf_path), pagesize=A4)
+                                width, height = A4
+                                
+                                # Parcourir tous les blocs du template
+                                for block in result['blocks']:
+                                    block_type = block.get('type', '')
+                                    # Convertir les coordonnées (origin en haut à gauche en HTML -> bas à gauche en PDF)
+                                    x_mm = block.get('x', 0) * mm / 3.78  # Conversion px to mm approximative
+                                    y_mm = (height - block.get('y', 0) * mm / 3.78)  # Inverser Y
+                                    w_mm = block.get('width', 200) * mm / 3.78
+                                    
+                                    c.saveState()
+                                    
+                                    # Générer le contenu selon le type
+                                    if block_type == 'adresse_entreprise':
+                                        c.setFont("Helvetica-Bold", 11)
+                                        c.drawString(x_mm, y_mm, org.nom or "MON ENTREPRISE BTP")
+                                        c.setFont("Helvetica", 9)
+                                        y_mm -= 12
+                                        c.drawString(x_mm, y_mm, org.adresse or "")
+                                        y_mm -= 10
+                                        c.drawString(x_mm, y_mm, f"{org.cp or ''} {org.ville or ''}")
+                                        y_mm -= 10
+                                        c.drawString(x_mm, y_mm, f"Tél: {org.telephone or ''}")
+                                        y_mm -= 10
+                                        c.drawString(x_mm, y_mm, f"Email: {org.email or ''}")
+                                    
+                                    elif block_type == 'titre':
+                                        c.setFont("Helvetica-Bold", 28)
+                                        c.drawCentredString(x_mm + w_mm/2, y_mm, "DEVIS")
+                                    
+                                    elif block_type == 'client':
+                                        c.setFont("Helvetica", 10)
+                                        if pdf_client:
+                                            c.drawString(x_mm, y_mm, f"{pdf_client.prenom or ''} {pdf_client.nom or ''}")
+                                            y_mm -= 12
+                                            if pdf_client.entreprise:
+                                                c.drawString(x_mm, y_mm, pdf_client.entreprise)
+                                                y_mm -= 12
+                                            c.drawString(x_mm, y_mm, pdf_client.adresse or "")
+                                            y_mm -= 12
+                                            c.drawString(x_mm, y_mm, f"{pdf_client.cp or ''} {pdf_client.ville or ''}")
+                                    
+                                    elif block_type == 'infos_devis':
+                                        c.setFont("Helvetica-Bold", 9)
+                                        c.drawString(x_mm, y_mm, f"Ref:")
+                                        c.setFont("Helvetica", 9)
+                                        c.drawString(x_mm + 40, y_mm, selected.numero)
+                                        y_mm -= 12
+                                        c.setFont("Helvetica-Bold", 9)
+                                        c.drawString(x_mm, y_mm, f"Date:")
+                                        c.setFont("Helvetica", 9)
+                                        c.drawString(x_mm + 40, y_mm, selected.date)
+                                    
+                                    elif block_type == 'objet':
+                                        c.setFont("Helvetica-Bold", 12)
+                                        objet_text = selected.objet if selected.objet else "Description des travaux"
+                                        c.drawString(x_mm, y_mm, f"Objet: {objet_text}")
+                                    
+                                    elif block_type == 'tableau_ouvrages':
+                                        from reportlab.platypus import Table, TableStyle
+                                        c.setFont("Helvetica-Bold", 10)
+                                        c.drawString(x_mm, y_mm, "DÉTAIL DES OUVRAGES")
+                                        y_mm -= 20
+                                        
+                                        # Créer les données du tableau
+                                        data = [['Réf', 'Désignation', 'Qté', 'P.U.', 'Total']]
+                                        for ligne in selected.lignes:
+                                            if ligne.type == 'ouvrage':
+                                                ouvrage = app_instance.dm.get_ouvrage_by_id(ligne.ouvrage_id)
+                                                data.append([
+                                                    str(ligne.ouvrage_id),
+                                                    ouvrage.designation if ouvrage else '',
+                                                    str(ligne.quantite),
+                                                    f"{ligne.prix_unitaire:.2f}€",
+                                                    f"{ligne.prix_ht:.2f}€"
+                                                ])
+                                        
+                                        # Dessiner le tableau manuellement (simplifié)
+                                        c.setFont("Helvetica", 8)
+                                        row_height = 15
+                                        for i, row in enumerate(data):
+                                            x_pos = x_mm
+                                            if i == 0:
+                                                c.setFont("Helvetica-Bold", 8)
+                                            else:
+                                                c.setFont("Helvetica", 8)
+                                            
+                                            for col in row:
+                                                c.drawString(x_pos, y_mm - i * row_height, str(col)[:20])
+                                                x_pos += 60
+                                    
+                                    elif block_type == 'totaux':
+                                        totals = selected.calculate_totals()
+                                        c.setFont("Helvetica-Bold", 10)
+                                        c.drawRightString(x_mm + w_mm, y_mm, f"Total HT: {totals['ht']:.2f}€")
+                                        y_mm -= 15
+                                        c.drawRightString(x_mm + w_mm, y_mm, f"TVA ({selected.tva}%): {totals['tva']:.2f}€")
+                                        y_mm -= 18
+                                        c.setFont("Helvetica-Bold", 12)
+                                        c.drawRightString(x_mm + w_mm, y_mm, f"Total TTC: {totals['ttc']:.2f}€")
+                                    
+                                    elif block_type == 'conditions':
+                                        c.setFont("Helvetica-Bold", 9)
+                                        c.drawString(x_mm, y_mm, "CONDITIONS GÉNÉRALES")
+                                        c.setFont("Helvetica", 8)
+                                        y_mm -= 15
+                                        conditions_lines = selected.conditions.split('\n') if selected.conditions else []
+                                        for line in conditions_lines[:5]:  # Limiter à 5 lignes
+                                            c.drawString(x_mm, y_mm, line[:80])
+                                            y_mm -= 10
+                                    
+                                    elif block_type == 'signature':
+                                        c.setFont("Helvetica-Bold", 9)
+                                        c.drawString(x_mm, y_mm, "Signature du client")
+                                        c.drawString(x_mm + w_mm/2, y_mm, "Signature entreprise")
+                                        y_mm -= 30
+                                        c.setFont("Helvetica", 8)
+                                        c.drawString(x_mm, y_mm, "Date: ___________")
+                                        c.drawString(x_mm + w_mm/2, y_mm, "Date: ___________")
+                                    
+                                    elif block_type == 'logo':
+                                        # Dessiner le logo
+                                        logo_relative = block.get('logoPath', '').lstrip('/')
+                                        
+                                        if not logo_relative:
+                                            # Pas de logo configuré, afficher un placeholder
+                                            c.setStrokeColor(colors.grey)
+                                            c.setFillColor(colors.lightgrey)
+                                            h_mm = block.get('height', 150) * mm / 3.78
+                                            c.rect(x_mm, y_mm - h_mm, w_mm, h_mm, fill=1)
+                                            c.setFillColor(colors.black)
+                                            c.setFont("Helvetica", 8)
+                                            c.drawString(x_mm + 5, y_mm - h_mm/2, "Logo non configuré")
+                                        else:
+                                            # Le chemin est /static/xxx.png, construire le chemin absolu
+                                            # __file__ est dans erp/ui/panels/, on remonte de 3 niveaux pour arriver à erp/, puis encore 1 pour la racine
+                                            base_path = Path(__file__).parent.parent.parent.parent
+                                            # logo_relative peut être "static/logo.png" ou "/static/logo.png"
+                                            if logo_relative.startswith('static/'):
+                                                logo_path = base_path / logo_relative
+                                            else:
+                                                # Enlever le / initial s'il existe
+                                                logo_path = base_path / logo_relative.lstrip('/')
+                                            
+                                            if logo_path.exists():
+                                                try:
+                                                    # Récupérer la hauteur du bloc (convertie depuis HTML)
+                                                    h_mm = block.get('height', 150) * mm / 3.78
+                                                    # Dessiner l'image (y_mm est déjà inversé, on descend de la hauteur)
+                                                    c.drawImage(str(logo_path), x_mm, y_mm - h_mm, width=w_mm, height=h_mm, preserveAspectRatio=True, mask='auto')
+                                                except Exception as e:
+                                                    # En cas d'erreur, dessiner un rectangle pour montrer où devrait être le logo
+                                                    c.setStrokeColor(colors.red)
+                                                    h_mm = block.get('height', 150) * mm / 3.78
+                                                    c.rect(x_mm, y_mm - h_mm, w_mm, h_mm)
+                                                    c.setFont("Helvetica", 8)
+                                                    c.drawString(x_mm + 5, y_mm - h_mm/2, f"Erreur: {str(e)[:40]}")
+                                            else:
+                                                # Fichier non trouvé - afficher le chemin complet pour debug
+                                                c.setStrokeColor(colors.orange)
+                                                h_mm = block.get('height', 150) * mm / 3.78
+                                                c.rect(x_mm, y_mm - h_mm, w_mm, h_mm)
+                                                c.setFont("Helvetica", 6)
+                                                c.drawString(x_mm + 2, y_mm - h_mm/2 + 5, f"Introuvable:")
+                                                c.drawString(x_mm + 2, y_mm - h_mm/2 - 5, str(logo_path)[:50])
+                                    
+                                    c.restoreState()
+                                
+                                c.save()
+                                notify_success(f'PDF généré : {pdf_path.name}')
+                                
+                                # Ouvrir le PDF
+                                os.startfile(str(pdf_path))
+                            except Exception as e:
+                                notify_error(f'Erreur lors de la génération du PDF : {str(e)}')
+                        
+                        # Créer une fenêtre de prévisualisation
+                        with ui.dialog() as preview_dialog, ui.card().style('width: 900px; max-width: 95vw; padding: 20px;'):
+                            # En-tête avec titre et boutons
+                            with ui.row().classes('w-full items-center justify-between mb-4'):
+                                ui.label('Aperçu PDF').classes('text-2xl font-bold')
+                                with ui.row().classes('gap-2'):
+                                    ui.button('Fermer', icon='close', on_click=preview_dialog.close).props('flat')
+                                    ui.button('Générer PDF', icon='picture_as_pdf', on_click=generate_pdf_with_demo).props('color=primary')
+                            
+                            # Conteneur pour l'aperçu
+                            with ui.column().classes('w-full').style('background: white; border: 1px solid #ddd;'):
+                                # Créer le HTML de l'aperçu avec les blocs positionnés
+                                preview_html = '''
+                                <div style="width: 794px; height: 1123px; position: relative; background: white; margin: 0 auto; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+                                '''
+                                
+                                for block in result['blocks']:
+                                    block_type = block.get('type', '')
+                                    x = block.get('x', 0)
+                                    y = block.get('y', 0)
+                                    width = block.get('width', 200)
+                                    
+                                    # Générer le contenu selon le type de bloc avec vraies données
+                                    content = ''
+                                    if block_type == 'adresse_entreprise':
+                                        content = f'<div style="font-size: 11px; line-height: 1.4;"><strong>{org.nom or "MON ENTREPRISE"}</strong><br>{org.adresse or ""}<br>{org.cp or ""} {org.ville or ""}<br>Tél: {org.telephone or ""}<br>Email: {org.email or ""}</div>'
+                                    elif block_type == 'titre':
+                                        content = '<div style="font-size: 28px; font-weight: bold; text-align: center; color: #333;">DEVIS</div>'
+                                    elif block_type == 'texte':
+                                        content = '<div style="font-size: 11px; line-height: 1.5;">Texte libre à personnaliser...</div>'
+                                    elif block_type == 'client':
+                                        if client:
+                                            content = f'<div style="font-size: 11px; line-height: 1.4;">{client.prenom or ""} {client.nom or ""}<br>{client.entreprise or ""}<br>{client.adresse or ""}<br>{client.cp or ""} {client.ville or ""}</div>'
+                                        else:
+                                            content = '<div style="font-size: 11px; line-height: 1.4;">Client<br>Nom du client<br>Adresse<br>Code postal Ville</div>'
+                                    elif block_type == 'infos_devis':
+                                        if demo_devis or selected:
+                                            devis_data = demo_devis or selected
+                                            content = f'<div style="font-size: 10px; line-height: 1.5;"><strong>Ref:</strong> {devis_data.numero}<br><strong>Date:</strong> {devis_data.date}</div>'
+                                        else:
+                                            content = '<div style="font-size: 10px; line-height: 1.5;"><strong>Ref:</strong> DEV-2025-XXXX<br><strong>Date:</strong> 15/12/2025</div>'
+                                    elif block_type == 'objet':
+                                        if demo_devis and demo_devis.objet:
+                                            content = f'<div style="font-size: 12px; font-weight: bold;">Objet: {demo_devis.objet}</div>'
+                                        else:
+                                            content = '<div style="font-size: 12px; font-weight: bold;">Objet: Description des travaux</div>'
+                                    elif block_type == 'tableau_ouvrages':
+                                        content = '<div style="font-size: 9px; border: 1px solid #ddd; padding: 8px; background: #fafafa;"><strong>DÉTAIL DES OUVRAGES</strong><br><br>Réf | Désignation | Qté | P.U. | Total<br>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br>[Les lignes du devis]</div>'
+                                    elif block_type == 'totaux':
+                                        if demo_devis:
+                                            totals = demo_devis.calculate_totals()
+                                            content = f'<div style="font-size: 11px; text-align: right; line-height: 1.8;"><div style="border-top: 1px solid #ddd; padding-top: 8px;"><strong>Total HT:</strong> {totals["ht"]:.2f} €<br><strong>TVA ({demo_devis.tva}%):</strong> {totals["tva"]:.2f} €<br><div style="font-size: 14px; margin-top: 4px;"><strong>Total TTC:</strong> {totals["ttc"]:.2f} €</div></div></div>'
+                                        else:
+                                            content = '<div style="font-size: 11px; text-align: right; line-height: 1.8;"><div style="border-top: 1px solid #ddd; padding-top: 8px;"><strong>Total HT:</strong> 0.00 €<br><strong>TVA (20%):</strong> 0.00 €<br><div style="font-size: 14px; margin-top: 4px;"><strong>Total TTC:</strong> 0.00 €</div></div></div>'
+                                    elif block_type == 'conditions':
+                                        if demo_devis and demo_devis.conditions:
+                                            content = f'<div style="font-size: 9px; line-height: 1.5;"><strong>CONDITIONS GÉNÉRALES</strong><br><br>{demo_devis.conditions[:200]}</div>'
+                                        else:
+                                            content = '<div style="font-size: 9px; line-height: 1.5;"><strong>CONDITIONS GÉNÉRALES</strong><br><br>Paiement: 30% à la commande, 40% à mi-parcours, 30% à la livraison<br>Délai de validité: 30 jours<br>Délai d\'exécution: à définir</div>'
+                                    elif block_type == 'signature':
+                                        content = '<div style="font-size: 10px; display: flex; justify-content: space-between; gap: 40px;"><div style="text-align: center;"><strong>Signature du client</strong><br><br>Date: ___________<br><br>________________</div><div style="text-align: center;"><strong>Signature entreprise</strong><br><br>Date: ___________<br><br>________________</div></div>'
+                                    elif block_type == 'logo' and block.get('logoPath'):
+                                        content = f'<img src="{block["logoPath"]}" style="width: 100%; height: 100%; object-fit: contain;" />'
+                                    
+                                    preview_html += f'''
+                                    <div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; border: 1px solid #e0e0e0; padding: 8px; background: white;">
+                                        {content}
+                                    </div>
+                                    '''
+                                
+                                preview_html += '</div>'
+                                
+                                ui.html(preview_html, sanitize=False)
+                        
+                        preview_dialog.open()
+                    
+                    # Ajouter les boutons dans la barre d'actions
+                    with actions_row:
+                        ui.button('Nouveau', icon='add', on_click=new_template).props('flat')
+                        ui.button('Charger', icon='folder_open', on_click=load_template).props('flat')
+                        ui.button('Enregistrer', icon='save', on_click=save_template).props('flat color=primary')
+                        ui.button('Enregistrer sous...', icon='save_as', on_click=save_as_template).props('flat')
+                        ui.button('Aperçu PDF', icon='preview', on_click=preview_pdf).props('flat color=secondary')
+                        ui.button('Tout effacer', icon='delete', on_click=lambda: ui.run_javascript('window.clearAll()')).props('flat color=negative')
             
             # Colonne droite : Page A4
             with ui.column().classes('flex-1 items-center').style('background: #e5e7eb; padding: 40px; border-radius: 8px; min-height: 1100px;'):
-                ui.label('📄 Page A4 - Format d\'impression').classes('text-lg font-semibold mb-4')
+                with ui.row().classes('items-center gap-2 mb-4'):
+                    ui.icon('description', size='md').classes('text-gray-700')
+                    ui.label('Page A4 - Format d\'impression').classes('text-lg font-semibold')
                 
                 # Page A4 avec drag and drop - utiliser HTML brut pour éviter les problèmes NiceGUI
                 a4_page = ui.html('''
@@ -399,8 +782,9 @@ def create_editeur_devis_panel(app_instance):
                             block.className = 'dropped-block';
                             block.dataset.blockId = blockId;
                             block.dataset.blockType = type;
-                            block.style.left = Math.max(0, x - 50) + 'px';
-                            block.style.top = Math.max(0, y - 20) + 'px';
+                            // Utiliser directement x et y (l'offset est appliqué uniquement lors du drop, pas lors du chargement)
+                            block.style.left = Math.max(0, x) + 'px';
+                            block.style.top = Math.max(0, y) + 'px';
                             block.style.width = '200px';
                             
                             let content = '';
@@ -422,8 +806,12 @@ def create_editeur_devis_panel(app_instance):
                                     block.style.width = '250px';
                                     break;
                                 case 'infos_devis':
-                                    content = '<div style="font-size: 10px; line-height: 1.5;"><strong>Devis N&deg;:</strong> DEV-2024-001<br><strong>Date:</strong> 15/12/2024<br><strong>Validit&eacute;:</strong> 30 jours</div>';
+                                    content = '<div style="font-size: 10px; line-height: 1.5;"><strong>R&eacute;f&eacute;rence:</strong> DEV-2024-001<br><strong>Date:</strong> 15/12/2024</div>';
                                     block.style.width = '220px';
+                                    break;
+                                case 'objet':
+                                    content = '<div style="font-size: 12px; font-weight: bold;">Objet: Description des travaux</div>';
+                                    block.style.width = '600px';
                                     break;
                                 case 'tableau_ouvrages':
                                     content = '<div style="font-size: 9px; border: 1px solid #ddd; padding: 8px; background: #fafafa;"><strong>D&Eacute;TAIL DES OUVRAGES</strong><br><br>R&eacute;f | D&eacute;signation | Qt&eacute; | P.U. | Total<br>&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;<br>[Les lignes seront ins&eacute;r&eacute;es ici]</div>';
@@ -442,6 +830,12 @@ def create_editeur_devis_panel(app_instance):
                                     content = '<div style="font-size: 10px; display: flex; justify-content: space-between; gap: 40px;"><div style="text-align: center;"><strong>Signature du client</strong><br><br>Date: ___________<br><br>________________</div><div style="text-align: center;"><strong>Signature entreprise</strong><br><br>Date: ___________<br><br>________________</div></div>';
                                     block.style.width = '500px';
                                     break;
+                                case 'logo':
+                                    content = '<div style="text-align: center; padding: 20px; border: 2px dashed #ccc; background: #fafafa;"><span class="material-icons" style="font-size: 48px; color: #999;">image</span><br><span style="font-size: 11px; color: #666;">Cliquez pour s&eacute;lectionner un logo</span></div>';
+                                    block.style.width = '200px';
+                                    block.style.height = '150px';
+                                    block.dataset.logoPath = '';
+                                    break;
                             }
                             
                             block.innerHTML = content;
@@ -454,7 +848,12 @@ def create_editeur_devis_panel(app_instance):
                             editBtn.title = 'Editer';
                             editBtn.textContent = '\\u270F\\uFE0F';
                             editBtn.addEventListener('click', () => {
-                                alert('Edition du bloc ' + blockId + ' - Fonctionnalite a venir');
+                                if (type === 'logo') {
+                                    // Pour le logo, ouvrir le sélecteur de fichier
+                                    window.selectLogoFile(blockId);
+                                } else {
+                                    alert('Edition du bloc ' + blockId + ' - Fonctionnalite a venir');
+                                }
                             });
                             
                             const deleteBtn = document.createElement('button');
@@ -570,20 +969,30 @@ def create_editeur_devis_panel(app_instance):
                             }
                         };
                         
+                        window.selectLogoFile = function(blockId) {
+                            // Appeler la fonction Python pour ouvrir le dialogue
+                            emitEvent('select_logo_for_block', blockId);
+                        };
+                        
                         window.saveTemplate = function() {
                             // Mettre a jour les positions actuelles de tous les blocs
                             const allBlocks = [];
                             document.querySelectorAll('.dropped-block').forEach(blockEl => {
                                 const blockId = parseInt(blockEl.dataset.blockId);
                                 const blockType = blockEl.dataset.blockType;
-                                allBlocks.push({
+                                const blockInfo = {
                                     id: blockId,
                                     type: blockType,
                                     x: parseInt(blockEl.style.left),
                                     y: parseInt(blockEl.style.top),
                                     width: parseInt(blockEl.style.width),
                                     height: blockEl.offsetHeight
-                                });
+                                };
+                                // Sauvegarder le logo si c'est un bloc logo
+                                if (blockType === 'logo' && blockEl.dataset.logoPath) {
+                                    blockInfo.logoPath = blockEl.dataset.logoPath;
+                                }
+                                allBlocks.push(blockInfo);
                             });
                             
                             window.blocks = allBlocks;
@@ -610,6 +1019,11 @@ def create_editeur_devis_panel(app_instance):
                                     const lastBlock = document.querySelector('[data-block-id="' + (window.blockIdCounter - 1) + '"]');
                                     if (lastBlock && blockData.width) {
                                         lastBlock.style.width = blockData.width + 'px';
+                                    }
+                                    // Restaurer le logo si c'est un bloc logo
+                                    if (blockData.type === 'logo' && blockData.logoPath && lastBlock) {
+                                        lastBlock.dataset.logoPath = blockData.logoPath;
+                                        lastBlock.innerHTML = '<img src="' + blockData.logoPath + '" style="width: 100%; height: 100%; object-fit: contain;" />';
                                     }
                                 });
                                 console.log('Template loaded:', templateData.blocks.length, 'blocks');
@@ -680,8 +1094,12 @@ def create_editeur_devis_panel(app_instance):
                             }
                             
                             const rect = page.getBoundingClientRect();
-                            const x = e.clientX - rect.left;
-                            const y = e.clientY - rect.top;
+                            const rawX = e.clientX - rect.left;
+                            const rawY = e.clientY - rect.top;
+                            
+                            // Appliquer l'offset pour centrer le bloc sous le curseur
+                            const x = Math.max(0, rawX - 50);
+                            const y = Math.max(0, rawY - 20);
                             
                             console.log('Drop at', x, y, 'type:', blockType);
                             window.createBlock(blockType, x, y);

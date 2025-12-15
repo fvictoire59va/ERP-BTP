@@ -35,9 +35,10 @@ def create_clients_panel(app_instance):
             with table_container:
                 # Headers
                 with ui.row().classes('w-full gap-2 font-bold bg-gray-100 p-2 rounded text-sm'):
-                    ui.label('Nom').classes('w-40 font-semibold')
-                    ui.label('Prenom').classes('w-40 font-semibold')
+                    ui.label('Nom').classes('w-32 font-semibold')
+                    ui.label('Prenom').classes('w-32 font-semibold')
                     ui.label('Entreprise').classes('flex-1 font-semibold')
+                    ui.label('Ville').classes('w-32 font-semibold')
                     ui.label('Email').classes('w-40 font-semibold')
                     ui.label('Telephone').classes('w-32 font-semibold')
                     ui.label('Actions').classes('w-32')
@@ -45,9 +46,10 @@ def create_clients_panel(app_instance):
                 # Rows
                 for idx, client in enumerate(app_instance.dm.clients):
                     with ui.row().classes('w-full gap-2 p-1 items-center hover:bg-gray-50 text-sm border-b border-gray-100'):
-                        ui.label(client.nom).classes('w-40')
-                        ui.label(client.prenom).classes('w-40')
+                        ui.label(client.nom).classes('w-32')
+                        ui.label(client.prenom).classes('w-32')
                         ui.label(client.entreprise).classes('flex-1')
+                        ui.label(f"{client.cp or ''} {client.ville or ''}".strip()).classes('w-32 text-xs')
                         ui.label(client.email).classes('w-40 text-xs')
                         ui.label(client.telephone).classes('w-32')
                         
@@ -74,6 +76,8 @@ def create_clients_panel(app_instance):
                                         client_updated.email = values.get('email', '')
                                         client_updated.telephone = values.get('telephone', '')
                                         client_updated.adresse = values.get('adresse', '')
+                                        client_updated.cp = values.get('cp', '')
+                                        client_updated.ville = values.get('ville', '')
                                         
                                         app_instance.dm.save_data()
                                         display_clients()
@@ -89,6 +93,8 @@ def create_clients_panel(app_instance):
                                             {'type': 'input', 'label': 'Email', 'value': client.email, 'key': 'email'},
                                             {'type': 'input', 'label': 'Telephone', 'value': client.telephone, 'key': 'telephone'},
                                             {'type': 'input', 'label': 'Adresse', 'value': client.adresse, 'key': 'adresse'},
+                                            {'type': 'input', 'label': 'Code postal', 'value': client.cp, 'key': 'cp'},
+                                            {'type': 'input', 'label': 'Ville', 'value': client.ville, 'key': 'ville'},
                                         ],
                                         on_save=save_client
                                     )

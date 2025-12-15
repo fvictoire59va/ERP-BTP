@@ -188,6 +188,7 @@ class Devis:
     numero: str
     date: str
     client_id: int
+    objet: str = ""  # Objet du devis
     lignes: List[LigneDevis] = field(default_factory=list)  # Contient chapitres, lignes devis, et lignes texte
     coefficient_marge: float = DEFAULT_COEFFICIENT_MARGE  # Coefficient de marge global pour tout le devis
     remise: float = 0.0  # Remise en pourcentage au niveau du devis

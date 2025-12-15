@@ -106,6 +106,20 @@ def create_devis_panel(app_instance):
                     date_devis = ui.input('Date', 
                                         value=initial_date).props('type=date').classes('w-40 date-input')
                     app_instance.date_devis_field = date_devis
+                
+                # Champ objet du devis
+                with ui.row().classes('w-full mt-4'):
+                    # Initialiser l'objet - utiliser l'objet du devis si chargement
+                    if devis_to_load:
+                        devis_obj_temp = app_instance.dm.get_devis_by_numero(devis_to_load)
+                        initial_objet = devis_obj_temp.objet if devis_obj_temp else ""
+                    else:
+                        initial_objet = ""
+                    
+                    objet_devis = ui.input('Objet', 
+                                          value=initial_objet,
+                                          placeholder='Description des travaux').classes('flex-1')
+                    app_instance.objet_devis_field = objet_devis
 
         # Section Lignes du devis
         with ui.card().classes('w-full mt-6').style('min-width: 100%; display: block;'):
@@ -443,6 +457,7 @@ def create_devis_panel(app_instance):
                     if existing_devis:
                         existing_devis.date = date_devis.value
                         existing_devis.client_id = app_instance.selected_client_id
+                        existing_devis.objet = objet_devis.value
                         existing_devis.lignes = app_instance.current_devis_lignes
                         existing_devis.coefficient_marge = app_instance.current_devis_coefficient
                         existing_devis.tva = app_instance.tva_rate_field.value if app_instance.tva_rate_field else 20.0
@@ -454,6 +469,7 @@ def create_devis_panel(app_instance):
                             numero=numero,
                             date=date_devis.value,
                             client_id=app_instance.selected_client_id,
+                            objet=objet_devis.value,
                             lignes=app_instance.current_devis_lignes,
                             coefficient_marge=app_instance.current_devis_coefficient,
                             tva=app_instance.tva_rate_field.value if app_instance.tva_rate_field else 20.0
