@@ -75,8 +75,8 @@ def create_ouvrages_panel(app_instance):
                     with ui.row().classes('w-full justify-between items-center mb-4'):
                         ui.label('Composants').classes('font-semibold text-lg text-gray-800')
                         with ui.row().classes('gap-2'):
-                            ui.button('+ Ajouter manuellement', on_click=lambda: add_composant()).classes('themed-button').props('size=sm')
-                            ui.button('📦 Choisir dans le catalogue', on_click=lambda: add_article_from_catalogue()).classes('themed-button').props('size=sm')
+                            ui.button('+ Ajouter manuellement', on_click=lambda: add_composant()).classes('themed-button')
+                            ui.button('📦 Choisir dans le catalogue', on_click=lambda: add_article_from_catalogue()).classes('themed-button')
                     
                     composants_list = []  # Liste pour stocker les données des composants
                     composants_container = ui.column().classes('w-full gap-2')
@@ -240,7 +240,7 @@ def create_ouvrages_panel(app_instance):
                                                 article_dialog.close()
                                                 notify_success(f'Article "{art.designation}" ajouté')
                                             
-                                            ui.button('Ajouter', on_click=add_this_article).classes('themed-button').props('size=sm')
+                                            ui.button('Ajouter', on_click=add_this_article).classes('themed-button')
                             
                             # Événements pour le filtrage en temps réel
                             search_input.on_value_change(lambda: filter_articles())
@@ -342,7 +342,6 @@ def create_ouvrages_panel(app_instance):
                                 edit_mode['ouvrage_id'] = None
                                 
                                 notify_success('Ouvrage modifié avec succès')
-                                refresh_ouvrages_by_category()
                             else:
                                 # Mode création - Créer un nouvel ouvrage
                                 # Vérifier que la référence n'existe pas déjà

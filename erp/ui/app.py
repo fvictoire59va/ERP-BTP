@@ -361,7 +361,7 @@ class DevisApp:
                 ('Paramètres', 'Paramètres'),
             ]
             
-            current_section = {'value': 'dashboard'}
+            current_section = {'value': 'devis'}
             
             def on_menu_selection(item_label: str):
                 """Callback du menu - change la section affichée"""
@@ -388,7 +388,7 @@ class DevisApp:
                 subsections_map = {
                     'devis': ['devis', 'liste'],
                     'articles': ['articles', 'liste_articles'],
-                    'ouvrages': ['ouvrages', 'liste_ouvrages'],
+                    'ouvrages': ['liste_ouvrages', 'ouvrages'],
                     'editeur': ['editeur_devis'],
                 }
                 subsections = subsections_map.get(section_key)
@@ -415,7 +415,7 @@ class DevisApp:
                             elif content_key == 'organisation':
                                 self.create_company_panel()
                             elif content_key == 'devis':
-                                self.create_devis_panel()
+                                self.create_liste_devis_panel()
                             elif content_key == 'projets':
                                 self.create_projets_panel()
                             elif content_key == 'ouvrages':
@@ -428,6 +428,8 @@ class DevisApp:
                                 self.create_parametres_panel()
                             elif content_key == 'liste':
                                 self.create_liste_devis_panel()
+                            elif content_key == 'creer':
+                                self.create_devis_panel()
                             elif content_key == 'liste_articles':
                                 self.create_liste_articles_panel()
                             elif content_key == 'liste_ouvrages':
@@ -495,15 +497,18 @@ class DevisApp:
                                 ui.label('').classes('text-gray-500 text-sm')
                         
                         # Afficher le contenu initial
-                        show_content(section_key)
+                        if subsections:
+                            show_content(subsections[0])
+                        else:
+                            show_content(section_key)
                     
                     # Stocker les références pour la navigation
                     self.show_section_with_children = show_section_with_children
                     self.show_content = show_content
                     self.current_section = current_section
                     
-                    # Afficher la section par défaut (dashboard)
-                    show_section_with_children('dashboard', None)
+                    # Afficher la section par défaut (devis)
+                    show_section_with_children('devis', ['devis', 'liste'])
 
     def create_devis_panel(self):
         """Cree le panneau de gestion des devis"""
