@@ -43,6 +43,8 @@ class Organisation:
     email: str = ""
     site_web: str = ""
     logo_path: str = ""
+    date_debut_exercice: str = ""
+    date_fin_exercice: str = ""
 
 
 @dataclass

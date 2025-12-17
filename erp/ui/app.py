@@ -36,6 +36,7 @@ from erp.ui.panels.autres import (
 from erp.ui.panels.liste_articles import create_liste_articles_panel as panel_create_liste_articles
 from erp.ui.panels.liste_ouvrages import create_liste_ouvrages_panel as panel_create_liste_ouvrages
 from erp.ui.panels.editeur_devis import create_editeur_devis_panel as panel_create_editeur_devis
+from erp.ui.panels.categories import create_categories_panel as panel_create_categories
 
 # Helper pour créer un bouton avec la couleur du thème (utilisé comme méthode de classe uniquement)
 def apply_theme_styles():
@@ -353,8 +354,7 @@ class DevisApp:
                 ('Organisation', 'Organisation'),
                 ('Devis', 'Devis'),
                 ('Chantiers', 'Chantiers'),
-                ('Ouvrages', 'Ouvrages'),
-                ('Articles', 'Articles'),
+                ('Catalogue', 'Catalogue'),
                 ('Clients', 'Clients'),
                 ('Éditeur', 'Éditeur'),
                 ('Tableau de bord', 'Dashboard'),
@@ -371,8 +371,7 @@ class DevisApp:
                     'Organisation': 'organisation',
                     'Devis': 'devis',
                     'Chantiers': 'projets',
-                    'Ouvrages': 'ouvrages',
-                    'Articles': 'articles',
+                    'Catalogue': 'catalogue',
                     'Clients': 'clients',
                     'Éditeur': 'editeur',
                     'Paramètres': 'parametres',
@@ -386,9 +385,8 @@ class DevisApp:
                 
                 # Afficher la section avec ses sous-menus
                 subsections_map = {
-                    'devis': ['devis', 'liste'],
-                    'articles': ['articles', 'liste_articles'],
-                    'ouvrages': ['liste_ouvrages', 'ouvrages'],
+                    'devis': ['liste', 'devis'],
+                    'catalogue': ['liste_ouvrages', 'ouvrages', 'liste_articles', 'articles', 'categories'],
                     'editeur': ['editeur_devis'],
                 }
                 subsections = subsections_map.get(section_key)
@@ -438,6 +436,8 @@ class DevisApp:
                                 self.create_editeur_devis_panel()
                             elif content_key == 'editeur':
                                 self.create_editeur_devis_panel()
+                            elif content_key == 'categories':
+                                self.create_categories_panel()
                     
                     def show_section_with_children(section_key, subsections):
                         """Affiche la section avec ses sous-menus horizontaux"""
@@ -463,6 +463,8 @@ class DevisApp:
                                             ui.tab('liste_ouvrages_tab', label='Liste Ouvrages')
                                         elif sub_key == 'editeur_devis':
                                             ui.tab('editeur_devis_tab', label='Éditeur de mise en forme')
+                                        elif sub_key == 'categories':
+                                            ui.tab('categories_tab', label='Catégories')
                                     
                                     self.tab_selector = tab_selector
                                     
@@ -484,6 +486,8 @@ class DevisApp:
                                                 show_content('liste_ouvrages')
                                             elif current_tab == 'editeur_devis_tab':
                                                 show_content('editeur_devis')
+                                            elif current_tab == 'categories_tab':
+                                                show_content('categories')
                                         return on_tab_change
                                     
                                     # Définir la valeur par défaut AVANT d'attacher le handler
@@ -557,3 +561,7 @@ class DevisApp:
     def create_editeur_devis_panel(self):
         """Crée le panneau éditeur de mise en forme des devis"""
         panel_create_editeur_devis(self)
+
+    def create_categories_panel(self):
+        """Crée le panneau de gestion des catégories"""
+        panel_create_categories(self)

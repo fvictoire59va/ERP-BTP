@@ -5,6 +5,8 @@ Panel de liste des articles
 from nicegui import ui
 from erp.ui.utils import notify_success, notify_error
 from erp.ui.components import create_edit_dialog
+import json
+from pathlib import Path
 
 
 def create_liste_articles_panel(app_instance):
@@ -38,43 +40,20 @@ def create_liste_articles_panel(app_instance):
             'peinture': 'Peinture'
         }
         
-        selected_filters = {'type': None, 'categorie': None}
+        selected_filters = {'type': None, 'categorie': None, 'sous_categorie': None}
         
-        # Section filtres en haut
-        with ui.card().classes('w-full shadow-none border').style('padding: 16px; margin-bottom: 20px;'):
-            ui.label('Filtrer les articles').classes('font-semibold text-lg text-gray-800 mb-4')
-            
-            # Filtre par type
-            with ui.row().classes('w-full items-center gap-2 mb-3'):
-                ui.label('Type:').classes('font-medium text-gray-700 w-24')
-                with ui.row().classes('gap-2 flex-wrap'):
-                    for type_key, type_label in types_articles.items():
-                        def make_select_type(t=type_key):
-                            def select_type():
-                                selected_filters['type'] = t
-                                refresh_articles_list()
-                            return select_type
-                        
-                        count = len([a for a in app_instance.dm.articles if (type_key is None or a.type_article == type_key)])
-                        btn_props = 'size=sm' if type_key is None else 'size=sm flat'
-                        ui.button(f"{type_label} ({count})", on_click=make_select_type(type_key)).props(btn_props)
-            
-            # Filtre par catégorie
-            with ui.row().classes('w-full items-center gap-2'):
-                ui.label('Catégorie:').classes('font-medium text-gray-700 w-24')
-                with ui.row().classes('gap-2 flex-wrap'):
-                    for cat_key, cat_label in categories_articles.items():
-                        def make_select_categorie(c=cat_key):
-                            def select_categorie():
-                                selected_filters['categorie'] = c
-                                refresh_articles_list()
-                            return select_categorie
-                        
-                        count = len([a for a in app_instance.dm.articles if (cat_key is None or getattr(a, 'categorie', 'general') == cat_key)])
-                        btn_props = 'size=sm' if cat_key is None else 'size=sm flat'
-                        ui.button(f"{cat_label} ({count})", on_click=make_select_categorie(cat_key)).props(btn_props)
+        # Charger les catégories depuis le fichier
+        def load_categories():
+            categories_file = Path('data') / 'categories.json'
+            if categories_file.exists():
+                with open(categories_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return []
         
-        # Section tableau
+        categories_data = load_categories()
+        
+        # Conteneurs
+        filters_container = ui.column().classes('w-full')
         articles_container = ui.column().classes('w-full gap-0')
         
         def refresh_articles_list():
@@ -87,8 +66,18 @@ def create_liste_articles_panel(app_instance):
             if selected_filters['type'] is not None:
                 filtered_articles = [a for a in filtered_articles if a.type_article == selected_filters['type']]
             
-            if selected_filters['categorie'] is not None:
-                filtered_articles = [a for a in filtered_articles if getattr(a, 'categorie', 'general') == selected_filters['categorie']]
+            # Filtrer par catégorie ou sous-catégorie
+            if selected_filters['sous_categorie'] is not None:
+                # Filtre par sous-catégorie uniquement
+                filtered_articles = [a for a in filtered_articles if getattr(a, 'categorie', 'general') == selected_filters['sous_categorie']]
+            elif selected_filters['categorie'] is not None:
+                # Filtre par catégorie principale : inclure les articles de cette catégorie et de ses sous-catégories
+                cat_node = next((c for c in categories_data if c['id'] == selected_filters['categorie']), None)
+                if cat_node:
+                    allowed_categories = [selected_filters['categorie']]
+                    if cat_node.get('children'):
+                        allowed_categories.extend([child['id'] for child in cat_node['children']])
+                    filtered_articles = [a for a in filtered_articles if getattr(a, 'categorie', 'general') in allowed_categories]
             
             if not filtered_articles:
                 with articles_container:
@@ -124,42 +113,132 @@ def create_liste_articles_panel(app_instance):
                                     notify_error('Article non trouvé')
                                     return
                                 
-                                def save_article_update(values):
-                                    art_updated = next((a for a in app_instance.dm.articles if a.id == article_id_val), None)
-                                    if not art_updated:
-                                        return
-                                    
-                                    # Vérifier la référence si elle a changé
-                                    if values.get('référence') != art_updated.reference:
-                                        if any(a.reference == values.get('référence') for a in app_instance.dm.articles if a.id != art_updated.id):
-                                            notify_error(f'La référence "{values.get("référence")}" existe déjà')
-                                            return
-                                    
-                                    art_updated.reference = values.get('référence', '')
-                                    art_updated.designation = values.get('désignation', '')
-                                    art_updated.description = values.get('description', '')
-                                    art_updated.unite = values.get('unité') or 'm²'
-                                    art_updated.prix_unitaire = values.get('prix_unitaire_(eur)', 0)
-                                    art_updated.type_article = values.get('type') or 'materiau'
-                                    art_updated.categorie = values.get('catégorie') or 'general'
-                                    
-                                    app_instance.dm.save_data()
-                                    refresh_articles_list()
-                                    notify_success('Article modifié avec succès')
+                                # Charger les catégories pour le dialogue
+                                categories_data = load_categories()
                                 
-                                edit_dialog = create_edit_dialog(
-                                    'Modifier l\'article',
-                                    fields=[
-                                        {'type': 'input', 'label': 'Référence', 'value': art.reference, 'key': 'référence'},
-                                        {'type': 'input', 'label': 'Désignation', 'value': art.designation, 'key': 'désignation'},
-                                        {'type': 'textarea', 'label': 'Description', 'value': art.description, 'rows': 2, 'key': 'description'},
-                                        {'type': 'select', 'label': 'Type', 'options': {'materiau': 'Matériau', 'fourniture': 'Fourniture', 'main_oeuvre': 'Main d\'œuvre', 'consommable': 'Consommable'}, 'value': art.type_article, 'key': 'type'},
-                                        {'type': 'select', 'label': 'Catégorie', 'options': {'general': 'Général', 'platrerie': 'Plâtrerie', 'menuiserie_int': 'Menuiserie Int.', 'menuiserie_ext': 'Menuiserie Ext.', 'faux_plafond': 'Faux Plafond', 'agencement': 'Agencement', 'isolation': 'Isolation', 'peinture': 'Peinture'}, 'value': getattr(art, 'categorie', 'general'), 'key': 'catégorie'},
-                                        {'type': 'select', 'label': 'Unité', 'options': {'m²': 'm²', 'ml': 'ml', 'u': 'unité', 'h': 'heure', 'kg': 'kg', 'l': 'l', 'forfait': 'forfait'}, 'value': art.unite, 'key': 'unité'},
-                                        {'type': 'number', 'label': 'Prix unitaire (EUR)', 'value': art.prix_unitaire, 'min': 0, 'step': 0.01, 'key': 'prix_unitaire_(eur)'},
-                                    ],
-                                    on_save=save_article_update
-                                )
+                                # Déterminer la catégorie parente et la sous-catégorie de l'article
+                                article_cat = getattr(art, 'categorie', 'general')
+                                parent_cat_id = None
+                                sous_cat_id = None
+                                
+                                # Trouver si c'est une catégorie parent ou une sous-catégorie
+                                for cat in categories_data:
+                                    if cat['id'] == article_cat:
+                                        parent_cat_id = article_cat
+                                        break
+                                    for child in cat.get('children', []):
+                                        if child['id'] == article_cat:
+                                            parent_cat_id = cat['id']
+                                            sous_cat_id = article_cat
+                                            break
+                                    if parent_cat_id:
+                                        break
+                                
+                                # Si aucune correspondance, utiliser 'general'
+                                if not parent_cat_id:
+                                    parent_cat_id = 'general'
+                                
+                                # State pour la sélection
+                                edit_selected_sous_cat = {'value': sous_cat_id}
+                                
+                                with ui.dialog() as edit_dialog, ui.card().classes('p-6 w-96'):
+                                    ui.label('Modifier l\'article').classes('text-xl font-bold mb-4')
+                                    
+                                    reference_input = ui.input('Référence', value=art.reference).classes('w-full')
+                                    designation_input = ui.input('Désignation', value=art.designation).classes('w-full')
+                                    description_input = ui.textarea('Description', value=art.description).props('rows=2').classes('w-full')
+                                    
+                                    type_select = ui.select(
+                                        label='Type',
+                                        options={'materiau': 'Matériau', 'fourniture': 'Fourniture', 'main_oeuvre': 'Main d\'œuvre', 'consommable': 'Consommable'},
+                                        value=art.type_article
+                                    ).classes('w-full')
+                                    
+                                    # Catégorie principale (avec options dynamiques)
+                                    cat_options = {cat['id']: cat['label'] for cat in categories_data}
+                                    categorie_select = ui.select(
+                                        label='Catégorie',
+                                        options=cat_options,
+                                        value=parent_cat_id
+                                    ).classes('w-full')
+                                    
+                                    # Container pour la sous-catégorie
+                                    sous_cat_container = ui.column().classes('w-full')
+                                    
+                                    def update_sous_cat_select():
+                                        sous_cat_container.clear()
+                                        selected_cat = categorie_select.value
+                                        
+                                        if not selected_cat:
+                                            return
+                                        
+                                        # Trouver la catégorie sélectionnée
+                                        cat = next((c for c in categories_data if c['id'] == selected_cat), None)
+                                        if not cat or not cat.get('children'):
+                                            edit_selected_sous_cat['value'] = None
+                                            return
+                                        
+                                        # Construire les options de sous-catégorie
+                                        sous_cat_options = {'': 'Aucune (catégorie principale)'}
+                                        sous_cat_options.update({child['id']: child['label'] for child in cat['children']})
+                                        
+                                        with sous_cat_container:
+                                            def on_sous_cat_change(e):
+                                                edit_selected_sous_cat['value'] = e.value if e.value else None
+                                            
+                                            ui.select(
+                                                label='Sous-catégorie',
+                                                options=sous_cat_options,
+                                                value=edit_selected_sous_cat['value'] or '',
+                                                on_change=on_sous_cat_change
+                                            ).classes('w-full')
+                                    
+                                    # Mettre à jour la sous-catégorie quand la catégorie change
+                                    categorie_select.on_value_change(lambda: update_sous_cat_select())
+                                    
+                                    # Initialiser la sous-catégorie
+                                    update_sous_cat_select()
+                                    
+                                    unite_select = ui.select(
+                                        label='Unité',
+                                        options={'m²': 'm²', 'ml': 'ml', 'u': 'unité', 'h': 'heure', 'kg': 'kg', 'l': 'l', 'forfait': 'forfait'},
+                                        value=art.unite
+                                    ).classes('w-full')
+                                    
+                                    prix_input = ui.number('Prix unitaire (EUR)', value=art.prix_unitaire, min=0, step=0.01).classes('w-full')
+                                    
+                                    with ui.row().classes('gap-2 mt-4 w-full justify-end'):
+                                        ui.button('Annuler', on_click=edit_dialog.close).props('flat')
+                                        
+                                        def save_article_update():
+                                            art_updated = next((a for a in app_instance.dm.articles if a.id == article_id_val), None)
+                                            if not art_updated:
+                                                return
+                                            
+                                            # Vérifier la référence si elle a changé
+                                            if reference_input.value != art_updated.reference:
+                                                if any(a.reference == reference_input.value for a in app_instance.dm.articles if a.id != art_updated.id):
+                                                    notify_error(f'La référence "{reference_input.value}" existe déjà')
+                                                    return
+                                            
+                                            art_updated.reference = reference_input.value or ''
+                                            art_updated.designation = designation_input.value or ''
+                                            art_updated.description = description_input.value or ''
+                                            art_updated.unite = unite_select.value or 'm²'
+                                            art_updated.prix_unitaire = prix_input.value or 0
+                                            art_updated.type_article = type_select.value or 'materiau'
+                                            
+                                            # Utiliser la sous-catégorie si elle est sélectionnée, sinon la catégorie
+                                            final_category = edit_selected_sous_cat['value'] if edit_selected_sous_cat['value'] else categorie_select.value
+                                            art_updated.categorie = final_category or 'general'
+                                            
+                                            app_instance.dm.save_data()
+                                            edit_dialog.close()
+                                            refresh_articles_list()
+                                            notify_success('Article modifié avec succès')
+                                        
+                                        ui.button('Enregistrer', on_click=save_article_update).props('color=primary')
+                                
                                 edit_dialog.open()
                             
                             return on_modify_click
@@ -173,4 +252,81 @@ def create_liste_articles_panel(app_instance):
                                 refresh_articles_list()
                             ), is_delete=True)
         
+        # Section filtres en haut (après la définition de refresh_articles_list)
+        with filters_container:
+            with ui.card().classes('w-full shadow-none border').style('padding: 16px; margin-bottom: 20px;'):
+                ui.label('Filtrer les articles').classes('font-semibold text-lg text-gray-800 mb-4')
+                
+                # Filtre par type
+                with ui.row().classes('w-full items-center gap-2 mb-3'):
+                    ui.label('Type:').classes('font-medium text-gray-700 w-24')
+                    with ui.row().classes('gap-2 flex-wrap'):
+                        for type_key, type_label in types_articles.items():
+                            def make_select_type(t=type_key):
+                                def select_type():
+                                    selected_filters['type'] = t
+                                    refresh_articles_list()
+                                return select_type
+                            
+                            count = len([a for a in app_instance.dm.articles if (type_key is None or a.type_article == type_key)])
+                            btn_props = 'size=sm' if type_key is None else 'size=sm flat'
+                            ui.button(f"{type_label} ({count})", on_click=make_select_type(type_key)).props(btn_props)
+                
+                # Filtre par catégorie avec sous-catégories
+                with ui.row().classes('w-full items-center gap-2 mb-3'):
+                    ui.label('Catégorie:').classes('font-medium text-gray-700 w-24')
+                    with ui.row().classes('gap-2 flex-wrap'):
+                        # Bouton "Toutes"
+                        def select_all():
+                            selected_filters['categorie'] = None
+                            selected_filters['sous_categorie'] = None
+                            refresh_articles_list()
+                        
+                        ui.button('Toutes', on_click=select_all).props('size=sm')
+                        
+                        # Créer un bouton avec menu déroulant pour chaque catégorie
+                        for cat in categories_data:
+                            cat_id = cat['id']
+                            cat_label = cat['label']
+                            children = cat.get('children', [])
+                            
+                            if children:
+                                # Catégorie avec sous-catégories : créer un menu déroulant
+                                with ui.button(cat_label).props('size=sm flat icon-right=arrow_drop_down'):
+                                    with ui.menu() as menu:
+                                        # Option pour sélectionner toute la catégorie
+                                        def make_select_cat(c_id=cat_id, m=menu):
+                                            def select_cat():
+                                                selected_filters['categorie'] = c_id
+                                                selected_filters['sous_categorie'] = None
+                                                m.close()
+                                                refresh_articles_list()
+                                            return select_cat
+                                        
+                                        ui.menu_item(f'Toute la catégorie {cat_label}', on_click=make_select_cat(cat_id, menu))
+                                        ui.separator()
+                                        
+                                        # Options pour chaque sous-catégorie
+                                        for child in children:
+                                            def make_select_subcat(sc_id=child['id'], m=menu):
+                                                def select_subcat():
+                                                    selected_filters['categorie'] = None
+                                                    selected_filters['sous_categorie'] = sc_id
+                                                    m.close()
+                                                    refresh_articles_list()
+                                                return select_subcat
+                                            
+                                            ui.menu_item(child['label'], on_click=make_select_subcat(child['id'], menu))
+                            else:
+                                # Catégorie sans sous-catégories : simple bouton
+                                def make_select_cat_only(c_id=cat_id):
+                                    def select_cat_only():
+                                        selected_filters['categorie'] = c_id
+                                        selected_filters['sous_categorie'] = None
+                                        refresh_articles_list()
+                                    return select_cat_only
+                                
+                                ui.button(cat_label, on_click=make_select_cat_only(cat_id)).props('size=sm flat')
+        
+        # Appeler refresh pour remplir le tableau initial
         refresh_articles_list()

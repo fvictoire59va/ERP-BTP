@@ -89,6 +89,8 @@ class DataManager:
                         self.organisation.email = org_data.get("email", "")
                         self.organisation.site_web = org_data.get("site_web", "")
                         self.organisation.logo_path = org_data.get("logo_path", "")
+                        self.organisation.date_debut_exercice = org_data.get("date_debut_exercice", "")
+                        self.organisation.date_fin_exercice = org_data.get("date_fin_exercice", "")
                     else:
                         # Old format: parse "address" field with embedded cp/ville
                         self.organisation.nom = org_data.get("name", "")
@@ -180,11 +182,7 @@ class DataManager:
     def save_data(self):
         try:
             # Save organisation to organisation.json
-            org_data = {
-                "name": self.organisation.nom,
-                "address": f"{self.organisation.adresse}\n{self.organisation.cp} {self.organisation.ville}",
-                "phone": self.organisation.telephone
-            }
+            org_data = asdict(self.organisation)
             with (self.data_dir / "organisation.json").open("w", encoding="utf-8") as f:
                 json.dump(org_data, f, ensure_ascii=False, indent=2)
 

@@ -4,6 +4,8 @@ Panel de liste des ouvrages
 
 from nicegui import ui
 from erp.ui.utils import notify_success, notify_error
+import json
+from pathlib import Path
 
 
 def create_liste_ouvrages_panel(app_instance):
@@ -16,53 +18,38 @@ def create_liste_ouvrages_panel(app_instance):
     with ui.card().classes('w-full shadow-sm').style('padding: 24px; min-height: 800px; min-width: 1200px; width: 100%;'):
         ui.label('Liste des Ouvrages').classes('text-3xl font-bold text-gray-900 mb-6')
         
-        categories = {
-            'platrerie': 'Plâtrerie',
-            'menuiserie_int': 'Menuiserie int.',
-            'menuiserie_ext': 'Menuiserie ext.',
-            'faux_plafond': 'Faux plafond',
-            'agencement': 'Agencement',
-            'isolation': 'Isolation',
-            'peinture': 'Peinture'
-        }
+        selected_filters = {'categorie': None}
         
-        selected_category = {'value': None}
+        # Charger les catégories depuis le fichier
+        def load_categories():
+            categories_file = Path('data') / 'categories.json'
+            if categories_file.exists():
+                with open(categories_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return []
         
-        # Section filtre en haut
-        with ui.card().classes('w-full shadow-none border').style('padding: 16px; margin-bottom: 20px;'):
-            ui.label('Filtrer par catégorie').classes('font-semibold text-lg text-gray-800 mb-4')
-            
-            with ui.row().classes('w-full gap-2 flex-wrap'):
-                # Bouton "Tous"
-                def select_all_categories():
-                    selected_category['value'] = None
-                    refresh_ouvrages_list()
-                
-                ui.button('Tous', on_click=select_all_categories).props('size=sm')
-                
-                # Boutons pour chaque catégorie
-                for cat_id, cat_label in categories.items():
-                    def make_select_category(cat=cat_id):
-                        def select_category():
-                            selected_category['value'] = cat
-                            refresh_ouvrages_list()
-                        return select_category
-                    
-                    count = len([o for o in app_instance.dm.ouvrages if o.categorie == cat_id])
-                    ui.button(f"{cat_label} ({count})", on_click=make_select_category(cat_id)).props('size=sm flat')
+        categories_data = load_categories()
         
-        # Section tableau
+        # Conteneurs
+        filters_container = ui.column().classes('w-full')
         ouvrages_container = ui.column().classes('w-full gap-0')
         
         def refresh_ouvrages_list():
             app_instance.dm.load_data()
             ouvrages_container.clear()
             
-            # Filtrer par catégorie si sélectionnée
-            if selected_category['value']:
-                filtered_ouvrages = [o for o in app_instance.dm.ouvrages if o.categorie == selected_category['value']]
-            else:
-                filtered_ouvrages = app_instance.dm.ouvrages
+            # Appliquer les filtres
+            filtered_ouvrages = app_instance.dm.ouvrages
+            
+            # Filtrer par catégorie uniquement
+            if selected_filters['categorie']:
+                # Filtre par catégorie principale : inclure les ouvrages de cette catégorie et de ses sous-catégories
+                cat_node = next((c for c in categories_data if c['id'] == selected_filters['categorie']), None)
+                if cat_node:
+                    allowed_categories = [selected_filters['categorie']]
+                    if cat_node.get('children'):
+                        allowed_categories.extend([child['id'] for child in cat_node['children']])
+                    filtered_ouvrages = [o for o in filtered_ouvrages if o.categorie in allowed_categories]
             
             if not filtered_ouvrages:
                 with ouvrages_container:
@@ -111,4 +98,36 @@ def create_liste_ouvrages_panel(app_instance):
                             app_instance.material_icon_button('edit', on_click=make_edit_handler(ouvrage))
                             app_instance.material_icon_button('delete', on_click=make_delete_handler(ouvrage), is_delete=True)
         
+        # Section filtres en haut (après la définition de refresh_ouvrages_list)
+        with filters_container:
+            with ui.card().classes('w-full shadow-none border').style('padding: 16px; margin-bottom: 20px;'):
+                ui.label('Filtrer les ouvrages').classes('font-semibold text-lg text-gray-800 mb-4')
+                
+                # Filtre par catégorie avec sous-catégories
+                with ui.row().classes('w-full items-center gap-2 mb-3'):
+                    ui.label('Catégorie:').classes('font-medium text-gray-700 w-24')
+                    with ui.row().classes('gap-2 flex-wrap'):
+                        # Bouton "Toutes"
+                        def select_all():
+                            selected_filters['categorie'] = None
+                            refresh_ouvrages_list()
+                        
+                        ui.button('Toutes', on_click=select_all).props('size=sm')
+                        
+                        # Créer un bouton avec menu déroulant pour chaque catégorie
+                        for cat in categories_data:
+                            cat_id = cat['id']
+                            cat_label = cat['label']
+                            children = cat.get('children', [])
+                            
+                            # Simple bouton pour chaque catégorie (inclut automatiquement les sous-catégories)
+                            def make_select_cat(c_id=cat_id):
+                                def select_cat():
+                                    selected_filters['categorie'] = c_id
+                                    refresh_ouvrages_list()
+                                return select_cat
+                            
+                            ui.button(cat_label, on_click=make_select_cat(cat_id)).props('size=sm flat')
+        
+        # Appeler refresh pour remplir le tableau initial
         refresh_ouvrages_list()

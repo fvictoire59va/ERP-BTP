@@ -7,6 +7,8 @@ Contient tous les composants pour créer, éditer et gérer les ouvrages.
 from nicegui import ui
 from erp.core.models import Ouvrage, ComposantOuvrage
 from erp.ui.utils import notify_success, notify_error, notify_info
+import json
+from pathlib import Path
 
 
 def create_ouvrages_panel(app_instance):
@@ -15,6 +17,16 @@ def create_ouvrages_panel(app_instance):
     Args:
         app_instance: Instance de DevisApp contenant dm et autres état
     """
+    
+    # Charger les catégories depuis le fichier
+    def load_categories():
+        categories_file = Path('data') / 'categories.json'
+        if categories_file.exists():
+            with open(categories_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return []
+    
+    categories_data = load_categories()
     
     # Ajouter le style CSS global pour masquer les flèches des champs number
     ui.add_head_html('''
@@ -44,18 +56,51 @@ def create_ouvrages_panel(app_instance):
                     # Ligne 2: Description et Catégorie
                     with ui.row().classes('w-full gap-4'):
                         description_input = ui.textarea('Description', placeholder='Courte description').classes('flex-1 ouvrage-description').props('rows=2')
+                        
+                        # Catégorie principale (avec options dynamiques)
+                        cat_options = {cat['id']: cat['label'] for cat in categories_data}
                         categorie_select = ui.select(
                             label='Catégorie',
-                            options={
-                                'platrerie': 'Plâtrerie',
-                                'menuiserie_int': 'Menuiserie intérieure',
-                                'menuiserie_ext': 'Menuiserie extérieure',
-                                'faux_plafond': 'Faux plafond',
-                                'agencement': 'Agencement',
-                                'isolation': 'Isolation',
-                                'peinture': 'Peinture'
-                            }
+                            options=cat_options
                         ).classes('w-48 ouvrage-categorie')
+                    
+                    # Ligne 2b: Sous-catégorie (dynamique selon la catégorie sélectionnée)
+                    sous_cat_container = ui.column().classes('w-full')
+                    selected_sous_cat = {'value': None}
+                    
+                    def update_sous_cat_select():
+                        sous_cat_container.clear()
+                        selected_cat = categorie_select.value
+                        
+                        if not selected_cat:
+                            return
+                        
+                        # Trouver la catégorie sélectionnée
+                        cat = next((c for c in categories_data if c['id'] == selected_cat), None)
+                        if not cat or not cat.get('children'):
+                            selected_sous_cat['value'] = None
+                            return
+                        
+                        # Construire les options de sous-catégorie
+                        sous_cat_options = {'': 'Aucune (catégorie principale)'}
+                        sous_cat_options.update({child['id']: child['label'] for child in cat['children']})
+                        
+                        with sous_cat_container:
+                            with ui.row().classes('w-full gap-4'):
+                                ui.label('').classes('flex-1')  # Spacer pour aligner avec description
+                                
+                                def on_sous_cat_change(e):
+                                    selected_sous_cat['value'] = e.value if e.value else None
+                                
+                                ui.select(
+                                    label='Sous-catégorie',
+                                    options=sous_cat_options,
+                                    value='',
+                                    on_change=on_sous_cat_change
+                                ).classes('w-48')
+                    
+                    # Mettre à jour la sous-catégorie quand la catégorie change
+                    categorie_select.on_value_change(lambda: update_sous_cat_select())
                     
                     # Ligne 3: Unité
                     with ui.row().classes('w-full gap-4'):
@@ -266,7 +311,35 @@ def create_ouvrages_panel(app_instance):
                         reference_input.value = ouvrage.reference
                         designation_input.value = ouvrage.designation
                         description_input.value = ouvrage.description
-                        categorie_select.set_value(ouvrage.categorie)
+                        
+                        # Déterminer la catégorie parente et la sous-catégorie
+                        ouvrage_cat = ouvrage.categorie
+                        parent_cat_id = None
+                        sous_cat_id = None
+                        
+                        # Trouver si c'est une catégorie parent ou une sous-catégorie
+                        for cat in categories_data:
+                            if cat['id'] == ouvrage_cat:
+                                parent_cat_id = ouvrage_cat
+                                break
+                            for child in cat.get('children', []):
+                                if child['id'] == ouvrage_cat:
+                                    parent_cat_id = cat['id']
+                                    sous_cat_id = ouvrage_cat
+                                    break
+                            if parent_cat_id:
+                                break
+                        
+                        # Définir la catégorie parente
+                        if parent_cat_id:
+                            categorie_select.set_value(parent_cat_id)
+                        else:
+                            categorie_select.set_value('general')
+                        
+                        # Mettre à jour les sous-catégories et sélectionner la bonne
+                        selected_sous_cat['value'] = sous_cat_id
+                        update_sous_cat_select()
+                        
                         unite_select.set_value(ouvrage.unite)
                         
                         # Charger les composants
@@ -315,7 +388,9 @@ def create_ouvrages_panel(app_instance):
                                 ouvrage.reference = reference_input.value
                                 ouvrage.designation = designation_input.value
                                 ouvrage.description = description_input.value
-                                ouvrage.categorie = categorie_select.value or 'platrerie'
+                                # Utiliser la sous-catégorie si elle est sélectionnée, sinon la catégorie
+                                final_category = selected_sous_cat['value'] if selected_sous_cat['value'] else categorie_select.value
+                                ouvrage.categorie = final_category or 'general'
                                 ouvrage.unite = unite_select.value or 'm²'
                                 
                                 # Remplacer les composants
@@ -350,12 +425,14 @@ def create_ouvrages_panel(app_instance):
                                     return
                                 
                                 # Créer l'ouvrage (sans coefficient_marge)
+                                # Utiliser la sous-catégorie si elle est sélectionnée, sinon la catégorie
+                                final_category = selected_sous_cat['value'] if selected_sous_cat['value'] else categorie_select.value
                                 new_ouvrage = Ouvrage(
                                     id=max((o.id for o in app_instance.dm.ouvrages), default=0) + 1,
                                     reference=reference_input.value,
                                     designation=designation_input.value,
                                     description=description_input.value,
-                                    categorie=categorie_select.value or 'platrerie',
+                                    categorie=final_category or 'general',
                                     unite=unite_select.value or 'm²'
                                 )
                                 

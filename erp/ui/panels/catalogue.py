@@ -8,6 +8,8 @@ from nicegui import ui
 from erp.core.models import Article
 from erp.ui.components import create_edit_dialog
 from erp.ui.utils import notify_success, notify_error
+import json
+from pathlib import Path
 
 
 def create_catalogue_panel(app_instance):
@@ -16,6 +18,16 @@ def create_catalogue_panel(app_instance):
     Args:
         app_instance: Instance de DevisApp contenant dm et autres état
     """
+    
+    # Charger les catégories depuis le fichier
+    def load_categories():
+        categories_file = Path('data') / 'categories.json'
+        if categories_file.exists():
+            with open(categories_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return []
+    
+    categories_data = load_categories()
     
     with ui.card().classes('w-full shadow-sm').style('padding: 48px; min-height: 600px; min-width: 1200px; width: 100%;'):
         ui.label('Articles').classes('text-3xl font-bold text-gray-900 mb-6')
@@ -44,26 +56,58 @@ def create_catalogue_panel(app_instance):
                         value='materiau'
                     ).classes('w-48 article-type')
                 
-                # Ligne 3: Catégorie et Unité
+                # Ligne 3: Catégorie, Sous-catégorie et Unité
                 with ui.row().classes('w-full gap-4'):
+                    # Créer les options pour la catégorie depuis categories_data
+                    cat_options = {}
+                    for cat in categories_data:
+                        cat_options[cat['id']] = cat['label']
+                    
                     categorie_select = ui.select(
                         label='Catégorie',
-                        options={
-                            'general': 'Général',
-                            'platrerie': 'Plâtrerie',
-                            'menuiserie_int': 'Menuiserie Int.',
-                            'menuiserie_ext': 'Menuiserie Ext.',
-                            'faux_plafond': 'Faux Plafond',
-                            'agencement': 'Agencement',
-                            'isolation': 'Isolation',
-                            'peinture': 'Peinture'
-                        },
-                        value='general'
+                        options=cat_options,
+                        value=list(cat_options.keys())[0] if cat_options else None
                     ).classes('w-48 article-categorie')
+                    
+                    # Conteneur pour la sous-catégorie
+                    sous_cat_container = ui.row().classes('w-48')
+                    
                     unite_select = ui.select(
                         label='Unité',
                         options={'m²': 'm²', 'ml': 'ml', 'u': 'unité', 'h': 'heure', 'kg': 'kg', 'l': 'l', 'forfait': 'forfait'}
                     ).classes('w-32 article-unite')
+                    
+                # Variable pour stocker la sous-catégorie sélectionnée
+                selected_sous_cat = {'value': None}
+                sous_cat_select_ref = {'ref': None}
+                
+                def update_sous_cat_select():
+                    sous_cat_container.clear()
+                    with sous_cat_container:
+                        if categorie_select.value:
+                            cat_node = next((c for c in categories_data if c['id'] == categorie_select.value), None)
+                            if cat_node and cat_node.get('children'):
+                                sous_cat_options = {'': 'Aucune (catégorie principale)'}
+                                for child in cat_node['children']:
+                                    sous_cat_options[child['id']] = child['label']
+                                
+                                sous_cat_select = ui.select(
+                                    label='Sous-catégorie',
+                                    options=sous_cat_options,
+                                    value=''
+                                ).classes('w-full')
+                                sous_cat_select_ref['ref'] = sous_cat_select
+                                
+                                def on_sous_cat_change():
+                                    selected_sous_cat['value'] = sous_cat_select.value if sous_cat_select.value else None
+                                
+                                sous_cat_select.on_value_change(on_sous_cat_change)
+                            else:
+                                ui.label('Pas de sous-catégorie').classes('text-sm text-gray-400 self-center')
+                                selected_sous_cat['value'] = None
+                
+                categorie_select.on_value_change(lambda: update_sous_cat_select())
+                update_sous_cat_select()
                 
                 # Ligne 4: Prix unitaire
                 with ui.row().classes('w-full gap-4'):
@@ -83,6 +127,10 @@ def create_catalogue_panel(app_instance):
                         return
                     
                     article_id = max((a.id for a in app_instance.dm.articles), default=0) + 1
+                    
+                    # Déterminer la catégorie à sauvegarder : sous-catégorie si sélectionnée, sinon catégorie principale
+                    final_category = selected_sous_cat['value'] if selected_sous_cat['value'] else categorie_select.value
+                    
                     new_article = Article(
                         id=article_id,
                         reference=ref_input.value,
@@ -91,7 +139,7 @@ def create_catalogue_panel(app_instance):
                         unite=unite_select.value or 'm²',
                         prix_unitaire=price_input.value,
                         type_article=type_select.value or 'materiau',
-                        categorie=categorie_select.value or 'general',
+                        categorie=final_category or 'general',
                         fournisseur_id=0  # Par défaut: sans fournisseur
                     )
                     
