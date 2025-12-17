@@ -415,7 +415,7 @@ class DevisApp:
                             elif content_key == 'organisation':
                                 self.create_company_panel()
                             elif content_key == 'devis':
-                                self.create_liste_devis_panel()
+                                self.create_devis_panel()
                             elif content_key == 'projets':
                                 self.create_projets_panel()
                             elif content_key == 'ouvrages':

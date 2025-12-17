@@ -22,11 +22,15 @@ def create_devis_panel(app_instance):
     """
     
     # Vérifier s'il y a un devis à charger depuis la navigation
+    # devis_to_load contient maintenant un objet Devis complet, pas un numéro
     devis_to_load = getattr(app_instance, 'devis_to_load', None)
+    is_editing_existing = getattr(app_instance, 'is_editing_existing_devis', False)
     
     # Nettoyer immédiatement pour éviter les doubles chargements
     if devis_to_load:
         app_instance.devis_to_load = None
+    if hasattr(app_instance, 'is_editing_existing_devis'):
+        app_instance.is_editing_existing_devis = False
     
     with ui.card().classes('w-full shadow-sm').style('padding: 24px; min-height: 800px; min-width: 1200px; width: 100%;'):
         # Titre et boutons d'action en haut
@@ -55,16 +59,21 @@ def create_devis_panel(app_instance):
                 ui.label('Informations generales').classes('font-semibold text-lg text-gray-800 mb-4')
                 
                 with ui.row().classes('w-full gap-4'):
-                    # Si un devis doit être chargé, ne pas initialiser avec un nouveau numéro
-                    initial_numero = devis_to_load if devis_to_load else get_next_unique_devis_number()
+                    # Si on édite un devis existant, utiliser son numéro, sinon générer un nouveau
+                    if devis_to_load and hasattr(devis_to_load, 'numero'):
+                        initial_numero = devis_to_load.numero
+                    elif is_editing_existing and hasattr(app_instance, 'current_devis_numero'):
+                        initial_numero = app_instance.current_devis_numero
+                    else:
+                        initial_numero = get_next_unique_devis_number()
+                    
                     numero_devis = ui.input('Numero de devis', 
                                           value=initial_numero).props('readonly borderless').classes('w-40 numero-input').style('box-shadow: none !important;')
                     app_instance.numero_devis_field = numero_devis
                     
                     # Initialiser selected_client_id - utiliser le client du devis si chargement
-                    if devis_to_load:
-                        devis_obj_temp = app_instance.dm.get_devis_by_numero(devis_to_load)
-                        initial_client_id = devis_obj_temp.client_id if devis_obj_temp else (app_instance.dm.clients[0].id if app_instance.dm.clients else None)
+                    if devis_to_load and hasattr(devis_to_load, 'client_id'):
+                        initial_client_id = devis_to_load.client_id
                     else:
                         # Pour un nouveau devis, utiliser selected_client_id existant ou le premier client
                         if not hasattr(app_instance, 'selected_client_id') or app_instance.selected_client_id is None:
@@ -89,9 +98,8 @@ def create_devis_panel(app_instance):
                     client_select.on_value_change(on_client_change)
                     
                     # Initialiser la date - utiliser la date du devis si chargement, sinon date du jour
-                    if devis_to_load:
-                        devis_obj_temp = app_instance.dm.get_devis_by_numero(devis_to_load)
-                        initial_date = devis_obj_temp.date if devis_obj_temp else datetime.now().strftime('%Y-%m-%d')
+                    if devis_to_load and hasattr(devis_to_load, 'date'):
+                        initial_date = devis_to_load.date
                     else:
                         initial_date = datetime.now().strftime('%Y-%m-%d')
                     
@@ -102,9 +110,8 @@ def create_devis_panel(app_instance):
                 # Champ objet du devis
                 with ui.row().classes('w-full mt-4'):
                     # Initialiser l'objet - utiliser l'objet du devis si chargement
-                    if devis_to_load:
-                        devis_obj_temp = app_instance.dm.get_devis_by_numero(devis_to_load)
-                        initial_objet = devis_obj_temp.objet if devis_obj_temp else ""
+                    if devis_to_load and hasattr(devis_to_load, 'objet'):
+                        initial_objet = devis_to_load.objet
                     else:
                         initial_objet = ""
                     
@@ -216,12 +223,12 @@ def create_devis_panel(app_instance):
                         with ui.row().classes('w-full font-bold bg-gray-100 px-1 rounded'):
                             ui.label('Niv').classes('w-12 px-2 border-r-2 border-gray-400')
                             ui.label('').classes('w-6')
-                            ui.label('Type').classes('w-20 px-2 border-r-2 border-gray-400')
+                            ui.label('').classes('w-16 px-1 text-center border-r-2 border-gray-400')
                             ui.label('Contenu').classes('flex-1 px-2 border-r-2 border-gray-400')
                             ui.label('Qte').classes('w-24 px-2 text-right border-r-2 border-gray-400')
                             ui.label('P.U. HT').classes('w-32 px-2 text-right border-r-2 border-gray-400')
                             ui.label('Total HT').classes('w-32 px-2 text-right border-r-2 border-gray-400')
-                            ui.label('Actions').classes('w-56 px-2')
+                            ui.label('Actions').classes('w-32 px-2')
                         
                         # Calculer les totaux hiérarchiques par section
                         def calculate_hierarchical_totals():
@@ -310,22 +317,22 @@ def create_devis_panel(app_instance):
                                         with ui.row().classes('w-full px-1 bg-purple-50 border-t-2 border-purple-300'):
                                             ui.label('').classes('w-12 px-2')
                                             ui.label('').classes('w-6')
-                                            ui.label('').classes('w-20 px-2')
+                                            ui.label('').classes('w-16 px-1')
                                             ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-purple-800')
                                             ui.label('').classes('w-24 px-2')
                                             ui.label('').classes('w-32 px-2')
                                             ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-purple-800')
-                                            ui.label('').classes('w-56 px-2')
+                                            ui.label('').classes('w-32 px-2')
                                     elif chapter_niveau == 2:
                                         with ui.row().classes('w-full px-1 bg-green-50 border-t-2 border-green-300'):
                                             ui.label('').classes('w-12 px-2')
                                             ui.label('').classes('w-6')
-                                            ui.label('').classes('w-20 px-2')
+                                            ui.label('').classes('w-16 px-1')
                                             ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-green-800')
                                             ui.label('').classes('w-24 px-2')
                                             ui.label('').classes('w-32 px-2')
                                             ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-green-800')
-                                            ui.label('').classes('w-56 px-2')
+                                            ui.label('').classes('w-32 px-2')
                             
                             with ui.column().classes('w-full'):
                                 toggle_state = {'expanded': False}
@@ -346,7 +353,11 @@ def create_devis_panel(app_instance):
                                         
                                         with ui.column().classes('w-6'):
                                             ui.label('')
-                                        ui.label('Chapitre').classes('w-20 px-2 text-sm overflow-hidden text-ellipsis border-r-2 border-gray-300')
+                                        with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
+                                            if idx > 0:
+                                                app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                            if idx < len(app_instance.current_devis_lignes) - 1:
+                                                app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
                                         ui.label(ligne.titre).classes(f'flex-1 px-2 font-semibold {text_size} overflow-hidden text-ellipsis border-r-2 border-gray-300')
                                         ui.label('').classes('w-24 px-2 border-r-2 border-gray-300')
                                         ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
@@ -354,7 +365,11 @@ def create_devis_panel(app_instance):
                                     elif ligne.type == 'texte':
                                         with ui.column().classes('w-6'):
                                             ui.label('')
-                                        ui.label('Texte').classes('w-20 px-2 text-sm overflow-hidden text-ellipsis border-r-2 border-gray-300')
+                                        with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
+                                            if idx > 0:
+                                                app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                            if idx < len(app_instance.current_devis_lignes) - 1:
+                                                app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
                                         ui.label(ligne.texte).classes('flex-1 px-2 italic text-gray-600 overflow-hidden text-ellipsis border-r-2 border-gray-300')
                                         ui.label('').classes('w-24 px-2 border-r-2 border-gray-300')
                                         ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
@@ -366,28 +381,28 @@ def create_devis_panel(app_instance):
                                             else:
                                                 expand_btn = None
                                                 ui.label('')
-                                        ui.label('Ouvrage').classes('w-20 px-2 text-sm overflow-hidden text-ellipsis border-r-2 border-gray-300')
+                                        with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
+                                            if idx > 0:
+                                                app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                            if idx < len(app_instance.current_devis_lignes) - 1:
+                                                app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
                                         ui.label(ligne.description if ligne.description else ligne.designation).classes('flex-1 px-2 overflow-hidden text-ellipsis border-r-2 border-gray-300')
                                         ui.label(f"{ligne.quantite:.2f}").classes('w-24 px-2 text-right overflow-hidden border-r-2 border-gray-300')
                                         ui.label(f"{ligne.prix_unitaire:.2f}").classes('w-32 px-2 text-right overflow-hidden border-r-2 border-gray-300')
                                         ui.label(f"{ligne.prix_ht:.2f}").classes('w-32 px-2 text-right font-bold overflow-hidden border-r-2 border-gray-300')
                                     
                                     # Boutons d'action
-                                    with ui.row().classes('w-56 px-2 gap-1 items-center flex-nowrap'):
+                                    with ui.row().classes('w-32 px-2 gap-1 items-center flex-nowrap'):
                                         def edit_ligne(i=idx):
                                             show_edit_dialog(i)
                                         
-                                        if idx > 0:
-                                            app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i))
-                                        if idx < len(app_instance.current_devis_lignes) - 1:
-                                            app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i))
                                         app_instance.material_icon_button('content_copy', on_click=lambda i=idx: duplicate_ligne(i))
                                         app_instance.material_icon_button('edit', on_click=edit_ligne)
                                         app_instance.material_icon_button('delete', on_click=lambda i=idx: delete_ligne(i), is_delete=True)
                                 
                                 # Afficher les composants si c'est un ouvrage
                                 if ligne.type == 'ouvrage' and hasattr(ligne, 'composants') and ligne.composants:
-                                    composants_container = ui.column().classes('themed-card-header p-3 ml-6 mr-6 rounded hidden').style('width: calc(100% - 48px);')
+                                    composants_container = ui.column().classes('themed-card-header ml-6 mr-6 rounded hidden').style('width: calc(100% - 48px); padding: 4px 0 !important; gap: 0 !important;')
                                     
                                     if expand_btn:
                                         def toggle_composants(details=composants_container, btn=expand_btn, state=toggle_state):
@@ -403,24 +418,28 @@ def create_devis_panel(app_instance):
                                         expand_btn.on('click', toggle_composants)
                                     
                                     with composants_container:
-                                        with ui.row().classes('w-full gap-1 text-xs font-semibold text-gray-600 bg-gray-100 py-1 px-2'):
-                                            ui.label('Composants').classes('flex-1')
-                                            ui.label('Qte').classes('w-20 text-right')
-                                            ui.label('P.U.').classes('w-20 text-right')
-                                            ui.label('Total').classes('w-20 text-right')
-                                            ui.label('').classes('w-12')
+                                        with ui.row().classes('w-full text-xs font-semibold text-gray-600 bg-gray-100').style('padding: 2px 8px !important; gap: 4px; margin: 0 !important; min-height: 20px !important;'):
+                                            ui.label('Composants').classes('flex-1').style('margin: 0; padding: 0; line-height: 1.2;')
+                                            ui.label('Qte').classes('w-20 text-right').style('margin: 0; padding: 0; line-height: 1.2;')
+                                            ui.label('P.U.').classes('w-20 text-right').style('margin: 0; padding: 0; line-height: 1.2;')
+                                            ui.label('Total').classes('w-20 text-right').style('margin: 0; padding: 0; line-height: 1.2;')
+                                            ui.label('').classes('w-12').style('margin: 0; padding: 0;')
                                         
                                         for comp_idx, comp in enumerate(ligne.composants):
-                                            with ui.row().classes('w-full gap-1 text-xs items-center px-2 hover:bg-gray-100 transition-colors').style('min-height: 28px;'):
-                                                ui.label(f"{comp.designation} ({comp.unite})").classes('flex-1')
+                                            with ui.row().classes('w-full text-xs items-center hover:bg-gray-100 transition-colors').style('min-height: 18px !important; padding: 1px 8px !important; margin: 0 !important; gap: 4px;'):
+                                                ui.label(f"{comp.designation} ({comp.unite})").classes('flex-1').style('line-height: 1.1; margin: 0; padding: 0; font-size: 11px;')
                                                 
-                                                qte_input = ui.number(value=comp.quantite, min=0.01, step=0.01).classes('w-20 text-right').props('dense borderless')
-                                                pu_input = ui.number(value=comp.prix_unitaire, min=0, step=0.01).classes('w-20 text-right').props('dense borderless')
+                                                qte_input = ui.input(value=f"{comp.quantite:.2f}").classes('w-20 text-right').props('dense borderless type=text inputmode=decimal')
+                                                pu_input = ui.input(value=f"{comp.prix_unitaire:.2f}").classes('w-20 text-right').props('dense borderless type=text inputmode=decimal')
                                                 total_label = ui.label(f"{comp.prix_total():.2f}").classes('w-20 text-right font-bold')
                                                 
                                                 def update_composant(c=comp, q=qte_input, p=pu_input, t=total_label, l=ligne):
-                                                    c.quantite = q.value or 0
-                                                    c.prix_unitaire = p.value or 0
+                                                    try:
+                                                        c.quantite = float(q.value.replace(',', '.')) if q.value else 0
+                                                        c.prix_unitaire = float(p.value.replace(',', '.')) if p.value else 0
+                                                    except (ValueError, AttributeError):
+                                                        c.quantite = 0
+                                                        c.prix_unitaire = 0
                                                     t.text = f"{c.prix_total():.2f}"
                                                     # Recalculer le prix de l'ouvrage
                                                     l.prix_unitaire = sum(comp.prix_total() for comp in l.composants)
@@ -967,10 +986,10 @@ def create_devis_panel(app_instance):
         
         # Charger le devis si demandé depuis la navigation
         if devis_to_load:
-                devis_obj = app_instance.dm.get_devis_by_numero(devis_to_load)
-                if devis_obj:
+                devis_obj = devis_to_load  # devis_to_load est déjà un objet Devis complet
+                if devis_obj and hasattr(devis_obj, 'numero'):
                     # Forcer la mise à jour de tous les champs
-                    numero_devis.set_value(devis_to_load)
+                    numero_devis.set_value(devis_obj.numero)
                     date_devis.set_value(devis_obj.date)
                     client_select.set_value(devis_obj.client_id)
                     app_instance.selected_client_id = devis_obj.client_id
@@ -988,4 +1007,4 @@ def create_devis_panel(app_instance):
                     
                     refresh_table()
                     app_instance.update_totals()
-                    notify_success(f'Devis {devis_to_load} chargé pour modification')
+                    # Notification gérée par liste_devis.py, pas ici

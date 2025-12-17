@@ -244,7 +244,72 @@ def init_styles():
       .w-full.gap-2.p-1 {
         margin-bottom: -1px !important;
       }
+      
+      /* Hide spinners on number inputs - all states */
+      .no-spinner input::-webkit-outer-spin-button,
+      .no-spinner input::-webkit-inner-spin-button,
+      .no-spinner .q-field__control input::-webkit-outer-spin-button,
+      .no-spinner .q-field__control input::-webkit-inner-spin-button,
+      .no-spinner .q-field input::-webkit-outer-spin-button,
+      .no-spinner .q-field input::-webkit-inner-spin-button {
+        -webkit-appearance: none !important;
+        margin: 0 !important;
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+      
+      .no-spinner input[type=number],
+      .no-spinner .q-field__control input[type=number],
+      .no-spinner .q-field input[type=number] {
+        -moz-appearance: textfield !important;
+      }
+      
+      .no-spinner input[type=number]:hover::-webkit-outer-spin-button,
+      .no-spinner input[type=number]:hover::-webkit-inner-spin-button,
+      .no-spinner input[type=number]:focus::-webkit-outer-spin-button,
+      .no-spinner input[type=number]:focus::-webkit-inner-spin-button,
+      .no-spinner .q-field__control input[type=number]:hover::-webkit-outer-spin-button,
+      .no-spinner .q-field__control input[type=number]:hover::-webkit-inner-spin-button,
+      .no-spinner .q-field__control input[type=number]:focus::-webkit-outer-spin-button,
+      .no-spinner .q-field__control input[type=number]:focus::-webkit-inner-spin-button {
+        -webkit-appearance: none !important;
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+      }
+      
+      /* Force hide all number spinners globally */
+      input[type=number]::-webkit-outer-spin-button,
+      input[type=number]::-webkit-inner-spin-button {
+        -webkit-appearance: none !important;
+        margin: 0 !important;
+        display: none !important;
+      }
+      
+      input[type=number] {
+        -moz-appearance: textfield !important;
+      }
     </style>
+    <script>
+      // Force remove spinners on all number inputs after page load
+      document.addEventListener('DOMContentLoaded', function() {
+        const style = document.createElement('style');
+        style.textContent = `
+          input[type=number]::-webkit-outer-spin-button,
+          input[type=number]::-webkit-inner-spin-button {
+            -webkit-appearance: none !important;
+            margin: 0 !important;
+            display: none !important;
+          }
+          input[type=number] {
+            -moz-appearance: textfield !important;
+          }
+        `;
+        document.head.appendChild(style);
+      });
+    </script>
     ''')
 
 

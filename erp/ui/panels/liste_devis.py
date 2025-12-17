@@ -82,6 +82,11 @@ def create_liste_devis_panel(app_instance):
                         
                         def make_modify_handler(devis_numero, devis_obj):
                                 def modify_devis():
+                                    # Marquer qu'on charge un devis existant (pas un nouveau)
+                                    app_instance.devis_to_load = devis_obj
+                                    app_instance.current_devis_numero = devis_numero
+                                    app_instance.is_editing_existing_devis = True
+                                    
                                     # Copier les lignes du devis sélectionné
                                     app_instance.current_devis_lignes = list(devis_obj.lignes) if devis_obj.lignes else []
                                     app_instance.current_devis_coefficient = devis_obj.coefficient_marge
@@ -99,13 +104,13 @@ def create_liste_devis_panel(app_instance):
                                     
                                     # Attendre que le panneau soit créé, puis charger les données
                                     def load_devis_data():
-                                        if hasattr(app_instance, 'numero_devis_field'):
+                                        if hasattr(app_instance, 'numero_devis_field') and app_instance.numero_devis_field:
                                             app_instance.numero_devis_field.set_value(devis_numero)
-                                        if hasattr(app_instance, 'date_devis_field'):
+                                        if hasattr(app_instance, 'date_devis_field') and app_instance.date_devis_field:
                                             app_instance.date_devis_field.set_value(devis_obj.date)
-                                        if hasattr(app_instance, 'client_select'):
+                                        if hasattr(app_instance, 'client_select') and app_instance.client_select:
                                             app_instance.client_select.set_value(devis_obj.client_id)
-                                        if hasattr(app_instance, 'tva_rate_field'):
+                                        if hasattr(app_instance, 'tva_rate_field') and app_instance.tva_rate_field:
                                             app_instance.tva_rate_field.set_value(devis_obj.tva)
                                         
                                         # Recalculer next_ligne_id basé sur les lignes existantes
@@ -115,7 +120,7 @@ def create_liste_devis_panel(app_instance):
                                             app_instance.next_ligne_id = 0
                                         
                                         # Rafraîchir le tableau des lignes
-                                        if hasattr(app_instance, 'refresh_devis_table'):
+                                        if hasattr(app_instance, 'refresh_devis_table') and app_instance.refresh_devis_table:
                                             app_instance.refresh_devis_table()
                                         app_instance.update_totals()
                                         notify_success(f'Devis {devis_numero} chargé pour modification')
