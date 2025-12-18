@@ -34,13 +34,16 @@ env/
 *~
 .DS_Store
 
-# Project-specific
-# Keep pdf/ folder but ignore generated PDFs
-pdf/**/*.pdf
-pdf/**/
+# NiceGUI storage
+.nicegui/
 
+# Project-specific
 # NE PAS envoyer le dossier data/ (données clients sensibles)
 data/
+
+# Logs (données temporaires)
+logs/
+*.log
 
 # PyInstaller builds (NE PAS ENVOYER sur GitHub)
 dist/
@@ -60,10 +63,34 @@ DEPLOYMENT.md
 *.7z
 ERP_BTP_v*.zip
 
+# Scripts de test et migration (développement uniquement)
+check_*.py
+test_*.py
+migrate_*.py
+recreate_tables.py
+reset_database.py
+reset_sequences.py
+update_datamanager_usage.py
+add_sous_categorie_column.py
+backup_postgres.bat
+run_postgres.bat
+test_connection.bat
+
+# Documentation développement (non nécessaire sur GitHub)
+FICHIERS_CREES.md
+RESUME_VISUEL.txt
+MIGRATION_POSTGRES.md
+DEMARRAGE_POSTGRES.md
+INSTALLATION_COMPLETE.md
+README_POSTGRES.md
+
 # Development
 .env
 .env.local
-*.log
+
+# PostgreSQL backups
+backups/
+*.sql
 
 # OS
 .DS_Store

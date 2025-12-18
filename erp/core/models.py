@@ -73,12 +73,13 @@ class Client:
 
 
 @dataclass
+@dataclass
 class Fournisseur:
     id: int
     nom: str
-    specialite: str
-    telephone: str
-    email: str
+    specialite: str = ""
+    telephone: str = ""
+    email: str = ""
     remise: float = 0.0
 
 
@@ -127,8 +128,9 @@ class Ouvrage:
     reference: str
     designation: str
     description: str
-    categorie: str  # platrerie, menuiserie_int, etc.
-    unite: str  # m², ml, u, forfait
+    categorie: str  # platrerie, menuiserie_int, etc. (catégorie principale)
+    sous_categorie: str = ""  # plaques_platre, ossature, etc. (sous-catégorie optionnelle)
+    unite: str = ""  # m², ml, u, forfait
     composants: List[ComposantOuvrage] = field(default_factory=list)
 
     @property
@@ -162,6 +164,7 @@ class LigneDevis:
     """Ligne de devis : un ouvrage avec une quantité"""
     type: str = "ouvrage"  # Type de ligne: "ouvrage", "texte" ou "chapitre"
     id: int = 0  # ID unique pour cette ligne
+    niveau: int = 1  # Niveau hiérarchique (1, 2, 3) pour chapitres et textes
     
     # Champs pour type "ouvrage"
     ouvrage_id: int = 0

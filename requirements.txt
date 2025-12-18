@@ -2,3 +2,6 @@ nicegui
 reportlab
 pandas
 pygwalker
+psycopg2-binary
+sqlalchemy
+python-dotenv

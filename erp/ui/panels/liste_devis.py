@@ -65,7 +65,7 @@ def create_liste_devis_panel(app_instance):
                         def make_statut_handler(devis_obj):
                             def on_statut_change(e):
                                 devis_obj.statut = e.value
-                                app_instance.dm.save_data()
+                                app_instance.dm.update_devis(devis_obj)
                             return on_statut_change
                         
                         ui.select(options=statut_options, value=current_devis.statut, on_change=make_statut_handler(current_devis)).classes('w-32').props('dense borderless').style('text-align: center;')
@@ -164,8 +164,7 @@ def create_liste_devis_panel(app_instance):
                                             def confirm_delete():
                                                 for d in app_instance.dm.devis_list[:]:
                                                     if d.numero == numero:
-                                                        app_instance.dm.devis_list.remove(d)
-                                                        app_instance.dm.save_data()
+                                                        app_instance.dm.delete_devis(numero)
                                                         notify_success(f'Devis {numero} supprimé')
                                                         display_table()
                                                         break

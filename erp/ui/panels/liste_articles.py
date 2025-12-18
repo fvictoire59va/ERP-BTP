@@ -5,6 +5,7 @@ Panel de liste des articles
 from nicegui import ui
 from erp.ui.utils import notify_success, notify_error
 from erp.ui.components import create_edit_dialog
+from erp.utils.validators import validate_article
 import json
 from pathlib import Path
 
@@ -91,6 +92,7 @@ def create_liste_articles_panel(app_instance):
                     ui.label('Désignation').classes('flex-1')
                     ui.label('Type').classes('w-32 text-center')
                     ui.label('Catégorie').classes('w-32 text-center')
+                    ui.label('Sous-catégorie').classes('w-40 text-center')
                     ui.label('Unité').classes('w-20 text-center')
                     ui.label('Prix unitaire').classes('w-32 text-right')
                     ui.label('Actions').classes('w-32')
@@ -98,11 +100,33 @@ def create_liste_articles_panel(app_instance):
                 # Rows
                 for article in filtered_articles:
                     article_id = article.id
+                    
+                    # Déterminer la catégorie et sous-catégorie pour l'affichage
+                    article_cat = getattr(article, 'categorie', 'general')
+                    display_cat = article_cat
+                    display_sous_cat = '-'
+                    
+                    # Chercher si c'est une sous-catégorie
+                    for cat in categories_data:
+                        if cat['id'] == article_cat:
+                            # C'est une catégorie principale
+                            display_cat = cat['label']
+                            break
+                        for child in cat.get('children', []):
+                            if child['id'] == article_cat:
+                                # C'est une sous-catégorie
+                                display_cat = cat['label']
+                                display_sous_cat = child['label']
+                                break
+                        if display_sous_cat != '-':
+                            break
+                    
                     with ui.row().classes('w-full gap-2 p-1 items-center hover:bg-gray-50 text-sm border-b border-gray-100'):
                         ui.label(article.reference).classes('w-40 font-mono')
                         ui.label(article.designation).classes('flex-1')
                         ui.label(article.type_article).classes('w-32 text-center')
-                        ui.label(getattr(article, 'categorie', 'general')).classes('w-32 text-center')
+                        ui.label(display_cat).classes('w-32 text-center')
+                        ui.label(display_sous_cat).classes('w-40 text-center text-gray-600')
                         ui.label(article.unite).classes('w-20 text-center')
                         ui.label(f"{article.prix_unitaire:.2f} EUR").classes('w-32 text-right font-semibold')
                         
@@ -215,15 +239,28 @@ def create_liste_articles_panel(app_instance):
                                             if not art_updated:
                                                 return
                                             
+                                            # Préparer les données pour validation
+                                            article_data = {
+                                                'reference': reference_input.value,
+                                                'designation': designation_input.value,
+                                                'prix_unitaire': prix_input.value
+                                            }
+                                            
+                                            # Valider les données
+                                            is_valid, error_message = validate_article(article_data)
+                                            if not is_valid:
+                                                notify_error(error_message)
+                                                return
+                                            
                                             # Vérifier la référence si elle a changé
                                             if reference_input.value != art_updated.reference:
                                                 if any(a.reference == reference_input.value for a in app_instance.dm.articles if a.id != art_updated.id):
                                                     notify_error(f'La référence "{reference_input.value}" existe déjà')
                                                     return
                                             
-                                            art_updated.reference = reference_input.value or ''
-                                            art_updated.designation = designation_input.value or ''
-                                            art_updated.description = description_input.value or ''
+                                            art_updated.reference = reference_input.value.strip()
+                                            art_updated.designation = designation_input.value.strip()
+                                            art_updated.description = description_input.value.strip() if description_input.value else ''
                                             art_updated.unite = unite_select.value or 'm²'
                                             art_updated.prix_unitaire = prix_input.value or 0
                                             art_updated.type_article = type_select.value or 'materiau'
@@ -232,10 +269,13 @@ def create_liste_articles_panel(app_instance):
                                             final_category = edit_selected_sous_cat['value'] if edit_selected_sous_cat['value'] else categorie_select.value
                                             art_updated.categorie = final_category or 'general'
                                             
-                                            app_instance.dm.save_data()
-                                            edit_dialog.close()
-                                            refresh_articles_list()
-                                            notify_success('Article modifié avec succès')
+                                            try:
+                                                app_instance.dm.update_article(art_updated)
+                                                edit_dialog.close()
+                                                refresh_articles_list()
+                                                notify_success('Article modifié avec succès')
+                                            except Exception as e:
+                                                notify_error(f"Erreur lors de la sauvegarde : {str(e)}")
                                         
                                         ui.button('Enregistrer', on_click=save_article_update).props('color=primary')
                                 
@@ -243,12 +283,70 @@ def create_liste_articles_panel(app_instance):
                             
                             return on_modify_click
                         
+                        def make_duplicate_handler(article_id_val):
+                            def on_duplicate_click():
+                                art = next((a for a in app_instance.dm.articles if a.id == article_id_val), None)
+                                if not art:
+                                    notify_error('Article non trouvé')
+                                    return
+                                
+                                with ui.dialog() as duplicate_dialog, ui.card().classes('p-6 w-96'):
+                                    ui.label('Dupliquer l\'article').classes('text-xl font-bold mb-4')
+                                    
+                                    # Générer une référence par défaut avec suffixe "-COPIE"
+                                    base_ref = art.reference
+                                    new_ref = f"{base_ref}-COPIE"
+                                    counter = 1
+                                    while any(a.reference == new_ref for a in app_instance.dm.articles):
+                                        new_ref = f"{base_ref}-COPIE{counter}"
+                                        counter += 1
+                                    
+                                    reference_input = ui.input('Nouvelle référence', value=new_ref).classes('w-full')
+                                    ui.label(f"Copie de: {art.designation}").classes('text-gray-600 text-sm mb-2')
+                                    
+                                    with ui.row().classes('gap-2 mt-4 w-full justify-end'):
+                                        ui.button('Annuler', on_click=duplicate_dialog.close).props('flat')
+                                        
+                                        def save_duplicate():
+                                            # Vérifier que la référence n'existe pas déjà
+                                            if any(a.reference == reference_input.value for a in app_instance.dm.articles):
+                                                notify_error(f'La référence "{reference_input.value}" existe déjà')
+                                                return
+                                            
+                                            # Créer le nouvel article (copie)
+                                            from erp.core.models import Article
+                                            new_article = Article(
+                                                id=0,  # ID temporaire, sera généré par la base
+                                                reference=reference_input.value.strip(),
+                                                designation=art.designation,
+                                                description=art.description,
+                                                unite=art.unite,
+                                                prix_unitaire=art.prix_unitaire,
+                                                type_article=art.type_article,
+                                                fournisseur_id=art.fournisseur_id,
+                                                categorie=getattr(art, 'categorie', 'general')
+                                            )
+                                            
+                                            try:
+                                                app_instance.dm.add_article(new_article)
+                                                duplicate_dialog.close()
+                                                refresh_articles_list()
+                                                notify_success(f'Article dupliqué avec la référence {reference_input.value}')
+                                            except Exception as e:
+                                                notify_error(f"Erreur lors de la duplication : {str(e)}")
+                                        
+                                        ui.button('Dupliquer', on_click=save_duplicate).props('color=primary')
+                                
+                                duplicate_dialog.open()
+                            
+                            return on_duplicate_click
+                        
                         with ui.row().classes('gap-2 items-center'):
                             app_instance.material_icon_button('edit', on_click=make_edit_handler(article_id))
+                            app_instance.material_icon_button('content_copy', on_click=make_duplicate_handler(article_id))
                             app_instance.material_icon_button('delete', on_click=lambda a=article: (
                                 notify_success('Article supprimé'),
-                                app_instance.dm.articles.remove(a),
-                                app_instance.dm.save_data(),
+                                app_instance.dm.delete_article(a.id),
                                 refresh_articles_list()
                             ), is_delete=True)
         

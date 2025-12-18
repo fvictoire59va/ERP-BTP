@@ -19,7 +19,7 @@ from erp.core.models import (
     LigneDevis,
     Devis,
 )
-from erp.core.data_manager import DataManager
+from erp.core.storage_config import get_data_manager
 
 # Imports des panels extraits
 from erp.ui.panels.devis import create_devis_panel as panel_create_devis
@@ -198,7 +198,7 @@ def apply_theme_styles():
 
 class DevisApp:
     def __init__(self):
-        self.dm = DataManager()
+        self.dm = get_data_manager()
         self.current_devis_lignes: List[LigneDevis] = []
         self.current_devis_coefficient: float = 1.35  # Coefficient du devis actuel
         self.selected_client_id = None
@@ -335,8 +335,8 @@ class DevisApp:
                     """Déconnecte l'utilisateur"""
                     session_id = nicegui_app.storage.user.get('session_id')
                     if session_id:
-                        from erp.core.data_manager import DataManager
-                        data_manager = DataManager()
+                        from erp.core.storage_config import get_data_manager
+                        data_manager = get_data_manager()
                         auth_manager = AuthManager(data_manager)
                         auth_manager.logout(session_id)
                     

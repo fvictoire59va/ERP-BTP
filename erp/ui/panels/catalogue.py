@@ -8,6 +8,7 @@ from nicegui import ui
 from erp.core.models import Article
 from erp.ui.components import create_edit_dialog
 from erp.ui.utils import notify_success, notify_error
+from erp.utils.validators import validate_article
 import json
 from pathlib import Path
 
@@ -117,8 +118,17 @@ def create_catalogue_panel(app_instance):
             # Bouton d'action
             with ui.row().classes('gap-2 mt-6 justify-end'):
                 def save_article():
-                    if not ref_input.value or not desig_input.value:
-                        notify_error('Veuillez remplir référence et désignation')
+                    # Préparer les données pour validation
+                    article_data = {
+                        'reference': ref_input.value,
+                        'designation': desig_input.value,
+                        'prix_unitaire': price_input.value
+                    }
+                    
+                    # Valider les données
+                    is_valid, error_message = validate_article(article_data)
+                    if not is_valid:
+                        notify_error(error_message)
                         return
                     
                     # Vérifier que la référence n'existe pas déjà
@@ -131,30 +141,32 @@ def create_catalogue_panel(app_instance):
                     # Déterminer la catégorie à sauvegarder : sous-catégorie si sélectionnée, sinon catégorie principale
                     final_category = selected_sous_cat['value'] if selected_sous_cat['value'] else categorie_select.value
                     
-                    new_article = Article(
-                        id=article_id,
-                        reference=ref_input.value,
-                        designation=desig_input.value,
-                        description=desc_input.value,
-                        unite=unite_select.value or 'm²',
-                        prix_unitaire=price_input.value,
-                        type_article=type_select.value or 'materiau',
-                        categorie=final_category or 'general',
-                        fournisseur_id=0  # Par défaut: sans fournisseur
-                    )
-                    
-                    app_instance.dm.articles.append(new_article)
-                    app_instance.dm.save_data()
-                    
-                    # Réinitialiser le formulaire
-                    ref_input.value = ''
-                    desig_input.value = ''
-                    desc_input.value = ''
-                    unite_select.value = 'm²'
-                    type_select.value = 'materiau'
-                    categorie_select.value = 'general'
-                    price_input.value = 0.0
-                    
-                    notify_success('Article créé avec succès')
+                    try:
+                        new_article = Article(
+                            id=article_id,
+                            reference=ref_input.value.strip(),
+                            designation=desig_input.value.strip(),
+                            description=desc_input.value.strip() if desc_input.value else '',
+                            unite=unite_select.value or 'm²',
+                            prix_unitaire=price_input.value,
+                            type_article=type_select.value or 'materiau',
+                            categorie=final_category or 'general',
+                            fournisseur_id=0  # Par défaut: sans fournisseur
+                        )
+                        
+                        app_instance.dm.add_article(new_article)
+                        
+                        # Réinitialiser le formulaire
+                        ref_input.value = ''
+                        desig_input.value = ''
+                        desc_input.value = ''
+                        unite_select.value = 'm²'
+                        type_select.value = 'materiau'
+                        categorie_select.value = 'general'
+                        price_input.value = 0.0
+                        
+                        notify_success('Article créé avec succès')
+                    except Exception as e:
+                        notify_error(f"Erreur lors de la création : {str(e)}")
                 
                 ui.button('Enregistrer', on_click=save_article).classes('themed-button')

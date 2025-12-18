@@ -115,7 +115,7 @@ class AuthManager:
         
         # Mise à jour de la dernière connexion
         user.update_last_login()
-        self.dm.save_data()
+        self.dm.update_user(user)
         
         # Créer une session
         session_id = self.session_manager.create_session(user.id)
@@ -158,7 +158,6 @@ class AuthManager:
         )
         
         self.dm.add_user(user)
-        self.dm.save_data()
         
         # Créer une session
         session_id = self.session_manager.create_session(user.id)

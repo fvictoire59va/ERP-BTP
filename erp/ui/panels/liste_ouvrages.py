@@ -89,8 +89,7 @@ def create_liste_ouvrages_panel(app_instance):
                         def make_delete_handler(ouv):
                             def delete_ouvrage():
                                 notify_success('Ouvrage supprimé')
-                                app_instance.dm.ouvrages.remove(ouv)
-                                app_instance.dm.save_data()
+                                app_instance.dm.delete_ouvrage(ouv.id)
                                 refresh_ouvrages_list()
                             return delete_ouvrage
                         

@@ -14,7 +14,7 @@ from erp.core.models import (
     LigneDevis,
     Devis,
 )
-from erp.core.data_manager import DataManager
+from erp.core.storage_config import get_data_manager
 
 __all__ = [
     # Constants

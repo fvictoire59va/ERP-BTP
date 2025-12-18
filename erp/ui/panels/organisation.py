@@ -4,7 +4,8 @@ Panel de gestion de l'organisation
 
 from nicegui import ui
 from erp.ui.components import create_edit_dialog
-from erp.ui.utils import notify_success
+from erp.ui.utils import notify_success, notify_error
+from erp.utils.validators import validate_organisation
 
 
 def create_company_panel(app_instance):
@@ -73,21 +74,31 @@ def create_company_panel(app_instance):
                             org = app_instance.dm.organisation
                             
                             def save_organisation(values):
+                                # Valider les données
+                                is_valid, error_message = validate_organisation(values)
+                                if not is_valid:
+                                    notify_error(error_message)
+                                    return
+                                
                                 # Mettre à jour l'organisation
-                                org.nom = values.get('nom', '')
-                                org.siret = values.get('siret', '')
-                                org.adresse = values.get('adresse', '')
-                                org.cp = values.get('code_postal', '')
-                                org.ville = values.get('ville', '')
-                                org.telephone = values.get('téléphone', '')
-                                org.email = values.get('email', '')
-                                org.site_web = values.get('site_web', '')
+                                org.nom = values.get('nom', '').strip()
+                                org.siret = values.get('siret', '').replace(' ', '').strip()
+                                org.adresse = values.get('adresse', '').strip()
+                                org.cp = values.get('code_postal', '').strip()
+                                org.ville = values.get('ville', '').strip()
+                                org.telephone = values.get('téléphone', '').strip()
+                                org.email = values.get('email', '').strip()
+                                org.site_web = values.get('site_web', '').strip()
                                 org.date_debut_exercice = values.get('date_debut_exercice', '')
                                 org.date_fin_exercice = values.get('date_fin_exercice', '')
                                 
-                                app_instance.dm.save_data()
-                                display_organisation()
-                                notify_success('Organisation modifiée avec succès')
+                                # Sauvegarder via le setter de l'organisation
+                                try:
+                                    app_instance.dm.organisation = org
+                                    display_organisation()
+                                    notify_success('Organisation modifiée avec succès')
+                                except Exception as e:
+                                    notify_error(f"Erreur lors de la sauvegarde : {str(e)}")
                             
                             # Créer la dialog avec create_edit_dialog
                             edit_dialog = create_edit_dialog(

@@ -7,6 +7,7 @@ Contient tous les composants pour consulter, éditer et gérer les clients.
 from nicegui import ui
 from erp.ui.components import create_edit_dialog
 from erp.ui.utils import notify_success, notify_error
+from erp.utils.validators import validate_client
 
 
 def create_clients_panel(app_instance):
@@ -64,24 +65,33 @@ def create_clients_panel(app_instance):
                                         return
                                     
                                     def save_client(values):
+                                        # Valider les données
+                                        is_valid, error_message = validate_client(values)
+                                        if not is_valid:
+                                            notify_error(error_message)
+                                            return
+                                        
                                         # Recharger le client au cas où il aurait changé
                                         client_updated = next((c for c in app_instance.dm.clients if c.id == client_id), None)
                                         if not client_updated:
                                             return
                                         
                                         # Mettre à jour le client
-                                        client_updated.nom = values.get('nom', '')
-                                        client_updated.prenom = values.get('prenom', '')
-                                        client_updated.entreprise = values.get('entreprise', '')
-                                        client_updated.email = values.get('email', '')
-                                        client_updated.telephone = values.get('telephone', '')
-                                        client_updated.adresse = values.get('adresse', '')
-                                        client_updated.cp = values.get('cp', '')
-                                        client_updated.ville = values.get('ville', '')
+                                        client_updated.nom = values.get('nom', '').strip()
+                                        client_updated.prenom = values.get('prenom', '').strip()
+                                        client_updated.entreprise = values.get('entreprise', '').strip()
+                                        client_updated.email = values.get('email', '').strip()
+                                        client_updated.telephone = values.get('telephone', '').strip()
+                                        client_updated.adresse = values.get('adresse', '').strip()
+                                        client_updated.cp = values.get('cp', '').strip()
+                                        client_updated.ville = values.get('ville', '').strip()
                                         
-                                        app_instance.dm.save_data()
-                                        display_clients()
-                                        notify_success('Client modifié avec succès')
+                                        try:
+                                            app_instance.dm.update_client(client_updated)
+                                            display_clients()
+                                            notify_success('Client modifié avec succès')
+                                        except Exception as e:
+                                            notify_error(f"Erreur lors de la sauvegarde : {str(e)}")
                                     
                                     # Créer la dialog avec create_edit_dialog
                                     edit_dialog = create_edit_dialog(
@@ -105,8 +115,7 @@ def create_clients_panel(app_instance):
                             def make_delete_handler(client_id):
                                 def delete_client():
                                     notify_success(f'Client supprimé')
-                                    app_instance.dm.clients = [c for c in app_instance.dm.clients if c.id != client_id]
-                                    app_instance.dm.save_data()
+                                    app_instance.dm.delete_client(client_id)
                                     display_clients()
                                 return delete_client
                             

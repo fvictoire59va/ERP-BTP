@@ -675,9 +675,9 @@ def create_devis_panel(app_instance):
                     app_instance.next_ligne_id += 1
                     # Insérer la nouvelle ligne juste après l'originale
                     app_instance.current_devis_lignes.insert(idx + 1, nouvelle_ligne)
+                    notify_success('Ligne dupliquée')
                     refresh_table()
                     app_instance.update_totals()
-                    notify_success('Ligne dupliquée')
                 
                 # Appeler refresh_table pour afficher le tableau initial
                 refresh_table()
@@ -726,7 +726,7 @@ def create_devis_panel(app_instance):
                         existing_devis.coefficient_marge = app_instance.current_devis_coefficient
                         existing_devis.tva = app_instance.tva_rate_field.value if app_instance.tva_rate_field else 20.0
                         
-                        app_instance.dm.save_data()
+                        app_instance.dm.update_devis(existing_devis)
                         notify_success(f'Devis {numero} mis à jour')
                     else:
                         devis = Devis(
@@ -739,8 +739,7 @@ def create_devis_panel(app_instance):
                             tva=app_instance.tva_rate_field.value if app_instance.tva_rate_field else 20.0
                         )
                         
-                        app_instance.dm.devis_list.append(devis)
-                        app_instance.dm.save_data()
+                        app_instance.dm.add_devis(devis)
                         notify_success(f'Devis {numero} créé')
                     
                     # Rafraîchir la liste des devis si callback disponible

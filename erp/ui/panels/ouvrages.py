@@ -99,8 +99,12 @@ def create_ouvrages_panel(app_instance):
                                     on_change=on_sous_cat_change
                                 ).classes('w-48')
                     
-                    # Mettre à jour la sous-catégorie quand la catégorie change
-                    categorie_select.on_value_change(lambda: update_sous_cat_select())
+                    # Mettre à jour la sous-catégorie quand la catégorie change (uniquement en mode création)
+                    def on_categorie_change():
+                        if not edit_mode['active']:
+                            update_sous_cat_select()
+                    
+                    categorie_select.on_value_change(lambda: on_categorie_change())
                     
                     # Ligne 3: Unité
                     with ui.row().classes('w-full gap-4'):
@@ -288,9 +292,18 @@ def create_ouvrages_panel(app_instance):
                                             ui.button('Ajouter', on_click=add_this_article).classes('themed-button')
                             
                             # Événements pour le filtrage en temps réel
-                            search_input.on_value_change(lambda: filter_articles())
-                            categorie_filter.on_value_change(lambda: filter_articles())
-                            type_filter.on_value_change(lambda: filter_articles())
+                            def on_search_change(e):
+                                filter_articles()
+                            
+                            def on_categorie_change(e):
+                                filter_articles()
+                            
+                            def on_type_change(e):
+                                filter_articles()
+                            
+                            search_input.on_value_change(on_search_change)
+                            categorie_filter.on_value_change(on_categorie_change)
+                            type_filter.on_value_change(on_type_change)
                             
                             # Affichage initial
                             filter_articles()
@@ -312,33 +325,14 @@ def create_ouvrages_panel(app_instance):
                         designation_input.value = ouvrage.designation
                         description_input.value = ouvrage.description
                         
-                        # Déterminer la catégorie parente et la sous-catégorie
-                        ouvrage_cat = ouvrage.categorie
-                        parent_cat_id = None
-                        sous_cat_id = None
-                        
-                        # Trouver si c'est une catégorie parent ou une sous-catégorie
-                        for cat in categories_data:
-                            if cat['id'] == ouvrage_cat:
-                                parent_cat_id = ouvrage_cat
-                                break
-                            for child in cat.get('children', []):
-                                if child['id'] == ouvrage_cat:
-                                    parent_cat_id = cat['id']
-                                    sous_cat_id = ouvrage_cat
-                                    break
-                            if parent_cat_id:
-                                break
-                        
-                        # Définir la catégorie parente
-                        if parent_cat_id:
-                            categorie_select.set_value(parent_cat_id)
+                        # Définir la catégorie (toujours une catégorie principale)
+                        if ouvrage.categorie in [cat['id'] for cat in categories_data]:
+                            categorie_select.set_value(ouvrage.categorie)
                         else:
                             categorie_select.set_value('general')
                         
-                        # Mettre à jour les sous-catégories et sélectionner la bonne
-                        selected_sous_cat['value'] = sous_cat_id
-                        update_sous_cat_select()
+                        # Masquer le conteneur de sous-catégorie en mode édition
+                        sous_cat_container.clear()
                         
                         unite_select.set_value(ouvrage.unite)
                         
@@ -388,9 +382,9 @@ def create_ouvrages_panel(app_instance):
                                 ouvrage.reference = reference_input.value
                                 ouvrage.designation = designation_input.value
                                 ouvrage.description = description_input.value
-                                # Utiliser la sous-catégorie si elle est sélectionnée, sinon la catégorie
-                                final_category = selected_sous_cat['value'] if selected_sous_cat['value'] else categorie_select.value
-                                ouvrage.categorie = final_category or 'general'
+                                # Catégorie principale (ne peut pas être modifiée en mode édition)
+                                ouvrage.categorie = categorie_select.value or 'general'
+                                ouvrage.sous_categorie = ''  # Pas de sous-catégorie en mode édition
                                 ouvrage.unite = unite_select.value or 'm²'
                                 
                                 # Remplacer les composants
@@ -405,18 +399,17 @@ def create_ouvrages_panel(app_instance):
                                     )
                                     ouvrage.composants.append(comp)
                                 
-                                app_instance.dm.save_data()
-                                
-                                # Réinitialiser le formulaire
-                                reference_input.value = ''
-                                designation_input.value = ''
-                                description_input.value = ''
-                                composants_list.clear()
-                                composants_container.clear()
-                                edit_mode['active'] = False
-                                edit_mode['ouvrage_id'] = None
-                                
-                                notify_success('Ouvrage modifié avec succès')
+                                try:
+                                    app_instance.dm.update_ouvrage(ouvrage)
+                                    
+                                    # En mode édition, ne pas réinitialiser le formulaire
+                                    # L'utilisateur peut continuer à modifier l'ouvrage
+                                    notify_success('Ouvrage modifié avec succès')
+                                except Exception as e:
+                                    if 'ouvrages_reference_key' in str(e) or 'duplicate key' in str(e).lower():
+                                        notify_error(f'La référence "{reference_input.value}" existe déjà dans la base')
+                                    else:
+                                        notify_error(f'Erreur lors de la modification: {str(e)}')
                             else:
                                 # Mode création - Créer un nouvel ouvrage
                                 # Vérifier que la référence n'existe pas déjà
@@ -424,15 +417,15 @@ def create_ouvrages_panel(app_instance):
                                     notify_error(f'La référence "{reference_input.value}" existe déjà')
                                     return
                                 
-                                # Créer l'ouvrage (sans coefficient_marge)
-                                # Utiliser la sous-catégorie si elle est sélectionnée, sinon la catégorie
-                                final_category = selected_sous_cat['value'] if selected_sous_cat['value'] else categorie_select.value
+                                # Créer l'ouvrage
+                                # Catégorie principale + sous-catégorie optionnelle
                                 new_ouvrage = Ouvrage(
-                                    id=max((o.id for o in app_instance.dm.ouvrages), default=0) + 1,
+                                    id=0,  # ID temporaire, sera généré par PostgreSQL
                                     reference=reference_input.value,
                                     designation=designation_input.value,
                                     description=description_input.value,
-                                    categorie=final_category or 'general',
+                                    categorie=categorie_select.value or 'general',
+                                    sous_categorie=selected_sous_cat['value'] or '',
                                     unite=unite_select.value or 'm²'
                                 )
                                 
@@ -448,17 +441,24 @@ def create_ouvrages_panel(app_instance):
                                     new_ouvrage.composants.append(comp)
                                 
                                 # Ajouter à la liste et sauvegarder
-                                app_instance.dm.ouvrages.append(new_ouvrage)
-                                app_instance.dm.save_data()
-                                
-                                # Réinitialiser le formulaire
-                                reference_input.value = ''
-                                designation_input.value = ''
-                                description_input.value = ''
-                                composants_list.clear()
-                                composants_container.clear()
-                                
-                                notify_success('Ouvrage créé avec succès')
+                                try:
+                                    app_instance.dm.add_ouvrage(new_ouvrage)
+                                    
+                                    # Réinitialiser le formulaire
+                                    reference_input.value = ''
+                                    designation_input.value = ''
+                                    description_input.value = ''
+                                    composants_list.clear()
+                                    composants_container.clear()
+                                    # Effacer les sous-catégories
+                                    sous_cat_container.clear()
+                                    
+                                    notify_success('Ouvrage créé avec succès')
+                                except Exception as e:
+                                    if 'ouvrages_reference_key' in str(e) or 'duplicate key' in str(e).lower():
+                                        notify_error(f'La référence "{reference_input.value}" existe déjà dans la base')
+                                    else:
+                                        notify_error(f'Erreur lors de la création: {str(e)}')
                     
                 # Bouton Enregistrer en dehors du cadre des composants
                 with ui.row().classes('w-full justify-end mt-4'):

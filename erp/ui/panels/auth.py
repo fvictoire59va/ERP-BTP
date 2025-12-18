@@ -5,7 +5,7 @@ from nicegui import ui
 from typing import Callable
 
 from erp.core.auth import AuthManager
-from erp.core.data_manager import DataManager
+from erp.core.storage_config import get_data_manager
 from erp.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -19,7 +19,7 @@ class AuthPanel:
         Args:
             on_login_success: Callback appelé lors d'une connexion réussie avec (session_id, username)
         """
-        self.data_manager = DataManager()
+        self.data_manager = get_data_manager()
         self.auth_manager = AuthManager(self.data_manager)
         self.on_login_success = on_login_success
         

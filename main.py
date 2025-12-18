@@ -2,6 +2,11 @@ from nicegui import ui, app as nicegui_app
 from erp.ui.app import DevisApp
 from pathlib import Path
 import sys
+import os
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement depuis .env si le fichier existe
+load_dotenv()
 
 # Variable globale pour l'instance de l'app
 _app_instance = None
@@ -322,9 +327,9 @@ unrestricted_page_routes = {'/login'}
 
 # Créer une instance globale de l'AuthManager (partagée entre toutes les pages)
 from erp.core.auth import AuthManager
-from erp.core.data_manager import DataManager
+from erp.core.storage_config import get_data_manager
 
-_data_manager = DataManager()
+_data_manager = get_data_manager()
 _auth_manager = AuthManager(_data_manager)
 
 # Page de login

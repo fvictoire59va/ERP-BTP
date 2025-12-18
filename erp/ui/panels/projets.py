@@ -4,14 +4,14 @@ Un chantier peut être rattaché à un ou plusieurs devis.
 """
 from datetime import datetime
 from nicegui import ui
-from erp.core.data_manager import DataManager
+from erp.core.storage_config import get_data_manager
 from erp.core.models import Projet, DepenseReelle
 from erp.ui.utils import notify_success, notify_error, notify_warning
 
 
 def create_projet_from_devis(devis, app_instance, container):
     """Crée un nouveau chantier à partir d'un devis accepté ou rattache à un chantier existant"""
-    dm = DataManager()
+    dm = get_data_manager()
     
     # Vérifier si le devis est accepté
     if devis.statut != "accepté":
@@ -50,7 +50,7 @@ def create_projet_from_devis(devis, app_instance, container):
 
 def show_attach_devis_dialog(devis, chantiers_existants, app_instance, container):
     """Dialogue pour choisir entre rattacher à un chantier existant ou créer un nouveau"""
-    dm = DataManager()
+    dm = get_data_manager()
     
     with ui.dialog() as dialog, ui.card().classes('w-[600px]'):
         ui.label(f'Chantier pour le devis {devis.numero}').classes('text-lg font-bold mb-4')
@@ -82,7 +82,7 @@ def show_attach_devis_dialog(devis, chantiers_existants, app_instance, container
 
 def attach_to_existing(devis, chantier, dialog, app_instance, container):
     """Rattache un devis à un chantier existant"""
-    dm = DataManager()
+    dm = get_data_manager()
     
     # Vérifier que le devis n'est pas déjà rattaché à un autre chantier
     chantier_avec_devis = next((p for p in dm.projets if devis.numero in p.devis_numeros), None)
@@ -95,7 +95,7 @@ def attach_to_existing(devis, chantier, dialog, app_instance, container):
         return
     
     chantier.devis_numeros.append(devis.numero)
-    dm.save_data()
+    dm.update_projet(chantier)
     
     notify_success(f"Devis {devis.numero} rattaché au chantier {chantier.numero}")
     dialog.close()
@@ -115,7 +115,7 @@ def create_new_from_dialog(devis, dialog, app_instance, container):
 
 def _create_new_projet(devis, app_instance, container):
     """Crée un nouveau chantier (fonction interne)"""
-    dm = DataManager()
+    dm = get_data_manager()
     
     # Récupérer le client
     client = dm.get_client_by_id(devis.client_id)
@@ -138,8 +138,7 @@ def _create_new_projet(devis, app_instance, container):
         depenses_reelles=[]
     )
     
-    dm.projets.append(projet)
-    dm.save_data()
+    dm.add_projet(projet)
     
     notify_success(f"Chantier {projet.numero} créé avec succès")
     
@@ -152,7 +151,7 @@ def _create_new_projet(devis, app_instance, container):
 
 def render_projets_panel(app_instance):
     """Affiche le panel de gestion des chantiers"""
-    dm = DataManager()
+    dm = get_data_manager()
     
     with ui.card().classes('w-full shadow-sm').style('padding: 24px; min-height: 800px;'):
         # Header
@@ -180,7 +179,7 @@ def render_projets_panel(app_instance):
 
 def render_projets_list(projets, app_instance, container):
     """Affiche les chantiers dans une vue type Trello avec colonnes par statut"""
-    dm = DataManager()
+    dm = get_data_manager()
     
     # Colonnes de statut
     statuts = [
@@ -304,8 +303,9 @@ def render_projet_card(projet, dm, app_instance, container, columns_dict):
                             app_instance.current_devis_coefficient = devis_obj.coefficient_marge
                             app_instance.selected_client_id = devis_obj.client_id
                             
-                            # Stocker le numéro de devis pour le charger après la navigation
-                            app_instance.devis_to_load = devis_numero
+                            # Stocker l'objet Devis complet pour le charger après la navigation
+                            app_instance.devis_to_load = devis_obj
+                            app_instance.is_editing_existing_devis = True
                             
                             # Naviguer vers la section devis avec le nouveau système de menu
                             if hasattr(app_instance, 'show_section_with_children'):
@@ -595,11 +595,11 @@ def toggle_projet_details(projet, details_dict, app_instance, dm):
 def delete_depense(projet, depense, app_instance, container):
     """Supprime une dépense après confirmation"""
     def confirm_delete():
-        dm = DataManager()
+        dm = get_data_manager()
         projet_obj = dm.get_projet_by_id(projet.id)
         if projet_obj:
             projet_obj.depenses_reelles = [d for d in projet_obj.depenses_reelles if d.id != depense.id]
-            dm.save_data()
+            dm.update_projet(projet_obj)
             notify_success("Dépense supprimée")
             dialog.close()
             refresh_projets_list(app_instance, container)
@@ -615,7 +615,7 @@ def delete_depense(projet, depense, app_instance, container):
 
 def show_edit_projet_dialog(projet, app_instance, container):
     """Affiche le dialogue d'édition d'un chantier"""
-    dm = DataManager()
+    dm = get_data_manager()
     
     with ui.dialog() as dialog, ui.card().classes('w-[600px]'):
         ui.label(f'Modifier le chantier {projet.numero}').classes('text-lg font-bold mb-4')
@@ -759,7 +759,7 @@ def add_devis_to_projet(projet, devis_numero, dm, refresh_callback, app_instance
     projet_obj = dm.get_projet_by_id(projet.id)
     if projet_obj:
         projet_obj.devis_numeros.append(devis_numero)
-        dm.save_data()
+        dm.update_projet(projet_obj)
         notify_success(f"Devis {devis_numero} ajouté au chantier")
         refresh_callback()
         refresh_projets_list(app_instance, container)
@@ -776,7 +776,7 @@ def remove_devis_from_projet(projet, devis_numero, dm, dialog, app_instance, con
                 return
             
             projet_obj.devis_numeros = [d for d in projet_obj.devis_numeros if d != devis_numero]
-            dm.save_data()
+            dm.update_projet(projet_obj)
             notify_success(f"Devis {devis_numero} retiré du chantier")
             confirm_dialog.close()
             dialog.close()
@@ -793,7 +793,7 @@ def remove_devis_from_projet(projet, devis_numero, dm, dialog, app_instance, con
 
 def save_projet_changes(projet, statut, date_debut, date_fin_prevue, date_fin_reelle, adresse, notes, dialog, app_instance, container):
     """Enregistre les modifications d'un chantier"""
-    dm = DataManager()
+    dm = get_data_manager()
     
     # Trouver le projet dans la liste
     projet_obj = dm.get_projet_by_id(projet.id)
@@ -810,7 +810,7 @@ def save_projet_changes(projet, statut, date_debut, date_fin_prevue, date_fin_re
     projet_obj.adresse_chantier = adresse
     projet_obj.notes = notes
     
-    dm.save_data()
+    dm.update_projet(projet_obj)
     notify_success("Chantier mis à jour avec succès")
     dialog.close()
     
@@ -821,9 +821,8 @@ def save_projet_changes(projet, statut, date_debut, date_fin_prevue, date_fin_re
 def delete_projet(projet, app_instance, container):
     """Supprime un chantier après confirmation"""
     def confirm_delete():
-        dm = DataManager()
-        dm.projets = [p for p in dm.projets if p.id != projet.id]
-        dm.save_data()
+        dm = get_data_manager()
+        dm.delete_projet(projet.id)
         notify_success(f"Chantier {projet.numero} supprimé")
         dialog.close()
         refresh_projets_list(app_instance, container)
@@ -839,7 +838,7 @@ def delete_projet(projet, app_instance, container):
 
 def refresh_projets_list(app_instance, container):
     """Rafraîchit la liste des chantiers"""
-    dm = DataManager()
+    dm = get_data_manager()
     container.clear()
     with container:
         if not dm.projets:
