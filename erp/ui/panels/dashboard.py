@@ -17,14 +17,11 @@ def create_dashboard_panel(app_instance):
     
     with ui.column().classes('w-full').style('padding: 0; margin: 0;'):
         ui.label('Tableau de bord - Analyse des données').classes('text-3xl font-bold text-gray-900 mb-6').style('padding: 24px 24px 0 24px;')
-        
-        # Charger les données JSON depuis le dossier data
-        data_dir = Path(app_instance.dm.data_dir)
-        
-        # Préparer les DataFrames
+
+        # Préparer les DataFrames à partir des objets Python (SQL)
         dataframes = {}
-        
-        # Charger les devis
+
+        # Devis
         try:
             devis_data = []
             for devis in app_instance.dm.devis_list:
@@ -44,8 +41,8 @@ def create_dashboard_panel(app_instance):
                 dataframes['Devis'] = pd.DataFrame(devis_data)
         except Exception as e:
             ui.label(f'Erreur chargement devis: {e}').classes('text-red-500')
-        
-        # Charger les clients
+
+        # Clients
         try:
             clients_data = []
             for client in app_instance.dm.clients:
@@ -62,36 +59,32 @@ def create_dashboard_panel(app_instance):
                 dataframes['Clients'] = pd.DataFrame(clients_data)
         except Exception as e:
             ui.label(f'Erreur chargement clients: {e}').classes('text-red-500')
-        
-        # Charger les chantiers
+
+        # Projets/Chantiers
         try:
             projets_data = []
             for projet in app_instance.dm.projets:
                 projet_dict = {
-                    'numero': projet.numero,
-                    'client_id': projet.client_id,
-                    'date_creation': projet.date_creation,
-                    'statut': projet.statut,
-                    'nb_devis': len(projet.devis_numeros)
+                    'numero': getattr(projet, 'numero', ''),
+                    'client_id': getattr(projet, 'client_id', ''),
+                    'date_creation': getattr(projet, 'date_creation', ''),
+                    'statut': getattr(projet, 'statut', ''),
+                    'nb_devis': len(getattr(projet, 'devis_numeros', []))
                 }
                 projets_data.append(projet_dict)
             if projets_data:
                 dataframes['Chantiers'] = pd.DataFrame(projets_data)
         except Exception as e:
             ui.label(f'Erreur chargement chantiers: {e}').classes('text-red-500')
-        
-        # Combiner tous les DataFrames
+
+        # Affichage principal
         if dataframes:
-            # Créer un DataFrame combiné principal avec les devis
             df_principal = dataframes.get('Devis', pd.DataFrame())
-            
             if not df_principal.empty:
-                # Afficher Pygwalker avec thème clair
                 try:
-                    # Utiliser to_html pour l'intégration web avec thème clair
                     pyg_html = pyg.to_html(
-                        df_principal, 
-                        spec="", 
+                        df_principal,
+                        spec="",
                         use_kernel_calc=True,
                         default_tab='data',
                         appearance='light'

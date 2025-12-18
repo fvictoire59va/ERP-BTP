@@ -21,6 +21,9 @@ def create_devis_panel(app_instance):
         app_instance: Instance de DevisApp contenant dm et autres état
     """
     
+    # Charger Sortable.js au tout début
+    ui.add_head_html('<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>')
+    
     # Vérifier s'il y a un devis à charger depuis la navigation
     # devis_to_load contient maintenant un objet Devis complet, pas un numéro
     devis_to_load = getattr(app_instance, 'devis_to_load', None)
@@ -62,10 +65,15 @@ def create_devis_panel(app_instance):
                     # Si on édite un devis existant, utiliser son numéro, sinon générer un nouveau
                     if devis_to_load and hasattr(devis_to_load, 'numero'):
                         initial_numero = devis_to_load.numero
+                        app_instance.current_devis_numero = initial_numero
                     elif is_editing_existing and hasattr(app_instance, 'current_devis_numero'):
+                        initial_numero = app_instance.current_devis_numero
+                    elif hasattr(app_instance, 'current_devis_numero') and app_instance.current_devis_numero:
+                        # Si on a déjà un devis en cours, le garder
                         initial_numero = app_instance.current_devis_numero
                     else:
                         initial_numero = get_next_unique_devis_number()
+                        app_instance.current_devis_numero = initial_numero
                     
                     numero_devis = ui.input('Numero de devis', 
                                           value=initial_numero).props('readonly borderless').classes('w-40 numero-input').style('box-shadow: none !important;')
@@ -207,10 +215,111 @@ def create_devis_panel(app_instance):
             with ui.column().classes('w-full gap-0'):
                 lines_container = ui.column().classes('w-full gap-0').style('min-width: 100%; min-height: 100px;')
                 
-                # ===== AJOUTER SORTABLE.JS POUR LE DRAG AND DROP =====
-                ui.add_head_html('<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>')
-                
                 # ===== DÉFINIR TOUTES LES FONCTIONS INTERNES EN PREMIER =====
+                
+                # Fonction pour initialiser Sortable.js (DOIT ÊTRE DÉFINIE AVANT refresh_table)
+                def init_sortable():
+                    """Initialise ou réinitialise Sortable.js sur le conteneur"""
+                    ui.run_javascript('''
+                        function loadSortableAndInit() {
+                            // Charger Sortable.js si pas déjà chargé
+                            if (typeof Sortable === 'undefined') {
+                                const script = document.createElement('script');
+                                script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js';
+                                script.onload = function() {
+                                    initSortableWithRetry(10);
+                                };
+                                document.head.appendChild(script);
+                            } else {
+                                initSortableWithRetry(10);
+                            }
+                        }
+                        
+                        function initSortableWithRetry(attempts) {
+                            if (attempts <= 0) {
+                                return;
+                            }
+                            
+                            const el = document.getElementById('devis-lines-sortable');
+                            
+                            if (!el || typeof Sortable === 'undefined') {
+                                setTimeout(function() { initSortableWithRetry(attempts - 1); }, 200);
+                                return;
+                            }
+                            
+                            if (el.sortableInstance) {
+                                el.sortableInstance.destroy();
+                            }
+                            
+                            el.sortableInstance = new Sortable(el, {
+                                animation: 150,
+                                draggable: '[data-id]',
+                                ghostClass: 'opacity-50',
+                                onEnd: function(evt) {
+                                    if (evt.oldIndex !== evt.newIndex) {
+                                        const items = el.querySelectorAll('[data-id]');
+                                        const newOrder = [];
+                                        items.forEach(function(item) {
+                                            newOrder.push(item.getAttribute('data-id'));
+                                        });
+                                        window.newOrder = newOrder;
+                                        window.reorderReady = true;
+                                    }
+                                }
+                            });
+                        }
+                        
+                        loadSortableAndInit();
+                    ''')
+                
+                # Timer pour vérifier et traiter les réorganisations
+                async def check_reorder():
+                    """Vérifie s'il y a une réorganisation en attente"""
+                    result = await ui.run_javascript('''
+                        if (window.reorderReady) {
+                            window.reorderReady = false;
+                            return window.newOrder || null;
+                        }
+                        return null;
+                    ''')
+                    
+                    if result:
+                        # Réorganiser selon le nouvel ordre des data-id
+                        new_lignes = []
+                        for ligne_id in result:
+                            # Convertir en int si c'est un string
+                            try:
+                                ligne_id_int = int(ligne_id)
+                            except:
+                                ligne_id_int = ligne_id
+                            
+                            ligne = next((l for l in app_instance.current_devis_lignes if l.id == ligne_id_int), None)
+                            if ligne:
+                                new_lignes.append(ligne)
+                        
+                        if len(new_lignes) == len(app_instance.current_devis_lignes):
+                            app_instance.current_devis_lignes = new_lignes
+                            recalculate_ouvrage_niveaux()
+                            refresh_table()
+                            app_instance.update_totals()
+                            
+                            # Sauvegarder automatiquement
+                            try:
+                                if hasattr(app_instance, 'numero_devis_field'):
+                                    numero = app_instance.numero_devis_field.value
+                                    existing_devis = next((d for d in app_instance.dm.devis_list if d.numero == numero), None)
+                                    if existing_devis:
+                                        existing_devis.client_id = app_instance.selected_client_id if app_instance.selected_client_id else existing_devis.client_id
+                                        existing_devis.objet = app_instance.objet_devis_field.value if hasattr(app_instance, 'objet_devis_field') else existing_devis.objet
+                                        existing_devis.lignes = app_instance.current_devis_lignes
+                                        existing_devis.coefficient_marge = app_instance.current_devis_coefficient
+                                        existing_devis.tva = app_instance.tva_rate_field.value if hasattr(app_instance, 'tva_rate_field') and app_instance.tva_rate_field else existing_devis.tva
+                                        app_instance.dm.update_devis(existing_devis)
+                            except:
+                                pass
+                
+                # Lancer le timer
+                ui.timer(0.15, check_reorder, active=True)
                 
                 def refresh_table():
                     """Rafraîchit l'affichage du tableau des lignes avec totaux par niveau"""
@@ -219,6 +328,7 @@ def create_devis_panel(app_instance):
                     if not app_instance.current_devis_lignes:
                         with lines_container:
                             ui.label('Aucune ligne. Ajoutez-en une ci-dessus.').classes('text-gray-500 text-center py-8')
+                        init_sortable()
                         return
                     
                     with lines_container:
@@ -226,113 +336,63 @@ def create_devis_panel(app_instance):
                         with ui.row().classes('w-full font-bold bg-gray-100 px-1 rounded'):
                             ui.label('Niv').classes('w-12 px-2 border-r-2 border-gray-400')
                             ui.label('').classes('w-6')
-                            ui.label('').classes('w-16 px-1 text-center border-r-2 border-gray-400')
                             ui.label('Contenu').classes('flex-1 px-2 border-r-2 border-gray-400')
                             ui.label('Qte').classes('w-24 px-2 text-right border-r-2 border-gray-400')
                             ui.label('P.U. HT').classes('w-32 px-2 text-right border-r-2 border-gray-400')
                             ui.label('Total HT').classes('w-32 px-2 text-right border-r-2 border-gray-400')
                             ui.label('Actions').classes('w-32 px-2')
                         
-                        # Calculer les totaux hiérarchiques par section
+                        # Calculer les totaux hiérarchiques
                         def calculate_hierarchical_totals():
-                            """Calcule les totaux cumulés pour chaque section de chapitre (incluant sous-chapitres)"""
                             section_totals = {}
-                            chapter_stack = []  # Stack de (idx, niveau, total_cumule)
-                            
+                            chapter_stack = []
                             for idx, ligne in enumerate(app_instance.current_devis_lignes):
                                 niveau = getattr(ligne, 'niveau', 1)
-                                
                                 if ligne.type == 'chapitre':
-                                    # Fermer tous les chapitres de niveau >= au niveau actuel
                                     while chapter_stack and chapter_stack[-1][1] >= niveau:
                                         closed_idx, closed_niveau, closed_total = chapter_stack.pop()
                                         section_totals[closed_idx] = (closed_niveau, closed_total)
-                                    
-                                    # Commencer un nouveau chapitre
                                     chapter_stack.append([idx, niveau, 0.0])
-                                
                                 elif ligne.type == 'ouvrage':
-                                    # Ajouter le prix aux totaux de tous les chapitres ouverts
                                     for chapter_info in chapter_stack:
                                         chapter_info[2] += ligne.prix_ht
-                            
-                            # Fermer tous les chapitres restants
                             while chapter_stack:
                                 closed_idx, closed_niveau, closed_total = chapter_stack.pop()
                                 section_totals[closed_idx] = (closed_niveau, closed_total)
-                            
                             return section_totals
                         
                         section_totals_map = calculate_hierarchical_totals()
                         
-                        # Grouper les lignes par sections de chapitres avec calcul des totaux par section
-                        sections = []  # Liste de (start_idx, end_idx, niveau, total_section)
-                        current_section_start = None
-                        current_section_niveau = None
-                        
-                        for idx, ligne in enumerate(app_instance.current_devis_lignes):
-                            niveau = getattr(ligne, 'niveau', 1)
-                            
-                            if ligne.type == 'chapitre':
-                                # Sauvegarder la section précédente
-                                if current_section_start is not None:
-                                    sections.append((current_section_start, idx - 1, current_section_niveau))
-                                current_section_start = idx
-                                current_section_niveau = niveau
-                        
-                        # Ajouter la dernière section
-                        if current_section_start is not None:
-                            sections.append((current_section_start, len(app_instance.current_devis_lignes) - 1, current_section_niveau))
-                        
-                        # Calculer le total de chaque section
-                        section_totals = {}
-                        for start_idx, end_idx, section_niveau in sections:
-                            total = 0.0
-                            for i in range(start_idx, end_idx + 1):
-                                ligne = app_instance.current_devis_lignes[i]
-                                if ligne.type == 'ouvrage':
-                                    total += ligne.prix_ht
-                            section_totals[(start_idx, section_niveau)] = total
-                        
                         # Conteneur pour les lignes avec Sortable.js
-                        sortable_container = ui.column().classes('w-full')
+                        sortable_container = ui.column().classes('w-full').style('gap: 2px !important;')
+                        print(f"[PYTHON] Created sortable container with id: devis-lines-sortable")
                         sortable_container._props['id'] = 'devis-lines-sortable'
                         
-                        # Afficher les lignes et gérer l'affichage des totaux hiérarchiques
-                        displayed_subtotals = set()  # Pour éviter d'afficher plusieurs fois le même sous-total
+                        displayed_subtotals = set()
                         
                         for idx, ligne in enumerate(app_instance.current_devis_lignes):
                             niveau = getattr(ligne, 'niveau', 1)
                             
-                            # Vérifier si on doit afficher un total avant cette ligne
-                            # (quand on change de section : nouveau chapitre de niveau égal ou inférieur)
+                            # Afficher les sous-totaux avant un nouveau chapitre
                             if idx > 0 and ligne.type == 'chapitre':
-                                # Trouver tous les chapitres qui doivent être fermés
                                 chapters_to_close = []
                                 for j in range(idx - 1, -1, -1):
                                     if app_instance.current_devis_lignes[j].type == 'chapitre':
                                         chapter_niveau = getattr(app_instance.current_devis_lignes[j], 'niveau', 1)
-                                        # Fermer ce chapitre si son niveau >= niveau actuel
                                         if chapter_niveau >= niveau and j in section_totals_map and j not in displayed_subtotals:
                                             chapters_to_close.append((j, chapter_niveau, section_totals_map[j][1]))
-                                        # Si on trouve un chapitre de niveau inférieur, on arrête
                                         if chapter_niveau < niveau:
                                             break
                                 
-                                # Trier par niveau décroissant (3 -> 2 -> 1) pour afficher du plus profond au plus haut
                                 chapters_to_close.sort(key=lambda x: -x[1])
-                                
-                                # Afficher les sous-totaux du plus profond au plus haut
                                 for chapter_idx, chapter_niveau, chapter_total in chapters_to_close:
                                     chapter_titre = app_instance.current_devis_lignes[chapter_idx].titre
-                                    displayed_subtotals.add(chapter_idx)  # Marquer comme affiché
-                                    
+                                    displayed_subtotals.add(chapter_idx)
                                     with sortable_container:
                                         if chapter_niveau == 3:
                                             with ui.row().classes('w-full px-1 bg-purple-50 border-t-2 border-purple-300'):
                                                 ui.label('').classes('w-12 px-2')
                                                 ui.label('').classes('w-6')
-                                                ui.label('').classes('w-16 px-1')
                                                 ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-purple-800')
                                                 ui.label('').classes('w-24 px-2')
                                                 ui.label('').classes('w-32 px-2')
@@ -342,7 +402,6 @@ def create_devis_panel(app_instance):
                                             with ui.row().classes('w-full px-1 bg-green-50 border-t-2 border-green-300'):
                                                 ui.label('').classes('w-12 px-2')
                                                 ui.label('').classes('w-6')
-                                                ui.label('').classes('w-16 px-1')
                                                 ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-green-800')
                                                 ui.label('').classes('w-24 px-2')
                                                 ui.label('').classes('w-32 px-2')
@@ -350,11 +409,14 @@ def create_devis_panel(app_instance):
                                                 ui.label('').classes('w-32 px-2')
                             
                             with sortable_container:
-                                with ui.column().classes('w-full').props(f'data-id="{idx}"'):
+                                line_container = ui.column().classes('w-full').style('margin: 0; padding: 0; min-height: 30px;')
+                                line_container._props['data-id'] = str(ligne.id)
+                                
+                                with line_container:
                                     toggle_state = {'expanded': False}
                                     expand_btn = None
                                     
-                                    with ui.row().classes('w-full px-1 items-center hover:bg-gray-50 cursor-move transition-colors'):
+                                    with ui.row().classes('w-full px-1 items-center hover:bg-gray-50 cursor-grab active:cursor-grabbing transition-colors'):
                                         # Colonne niveau
                                         ui.label(f'{niveau}').classes('w-12 px-2 text-center font-semibold text-gray-600 border-r-2 border-gray-300')
                                         
@@ -369,11 +431,6 @@ def create_devis_panel(app_instance):
                                             
                                             with ui.column().classes('w-6'):
                                                 ui.label('')
-                                            with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
-                                                if idx > 0:
-                                                    app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                                if idx < len(app_instance.current_devis_lignes) - 1:
-                                                    app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
                                             ui.label(ligne.titre).classes(f'flex-1 px-2 font-semibold {text_size} overflow-hidden text-ellipsis border-r-2 border-gray-300')
                                             ui.label('').classes('w-24 px-2 border-r-2 border-gray-300')
                                             ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
@@ -381,11 +438,6 @@ def create_devis_panel(app_instance):
                                         elif ligne.type == 'texte':
                                             with ui.column().classes('w-6'):
                                                 ui.label('')
-                                            with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
-                                                if idx > 0:
-                                                    app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                                if idx < len(app_instance.current_devis_lignes) - 1:
-                                                    app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
                                             ui.label(ligne.texte).classes('flex-1 px-2 italic text-gray-600 overflow-hidden text-ellipsis border-r-2 border-gray-300')
                                             ui.label('').classes('w-24 px-2 border-r-2 border-gray-300')
                                             ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
@@ -397,11 +449,6 @@ def create_devis_panel(app_instance):
                                                 else:
                                                     expand_btn = None
                                                     ui.label('')
-                                            with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
-                                                if idx > 0:
-                                                    app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                                if idx < len(app_instance.current_devis_lignes) - 1:
-                                                    app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
                                             ui.label(ligne.description if ligne.description else ligne.designation).classes('flex-1 px-2 overflow-hidden text-ellipsis border-r-2 border-gray-300')
                                             ui.label(f"{ligne.quantite:.2f}").classes('w-24 px-2 text-right overflow-hidden border-r-2 border-gray-300')
                                             ui.label(f"{ligne.prix_unitaire:.2f}").classes('w-32 px-2 text-right overflow-hidden border-r-2 border-gray-300')
@@ -496,140 +543,34 @@ def create_devis_panel(app_instance):
                                         with ui.row().classes('w-full px-1 bg-purple-50 border-t-2 border-purple-300'):
                                             ui.label('').classes('w-12 px-2')
                                             ui.label('').classes('w-6')
-                                            ui.label('').classes('w-20 px-2')
                                             ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-purple-800')
                                             ui.label('').classes('w-24 px-2')
                                             ui.label('').classes('w-32 px-2')
                                             ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-purple-800')
-                                            ui.label('').classes('w-56 px-2')
+                                            ui.label('').classes('w-32 px-2')
                                     elif niveau == 2:
                                         with ui.row().classes('w-full px-1 bg-green-50 border-t-2 border-green-300'):
                                             ui.label('').classes('w-12 px-2')
                                             ui.label('').classes('w-6')
-                                            ui.label('').classes('w-20 px-2')
                                             ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-green-800')
                                             ui.label('').classes('w-24 px-2')
                                             ui.label('').classes('w-32 px-2')
                                             ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-green-800')
-                                            ui.label('').classes('w-56 px-2')
+                                            ui.label('').classes('w-32 px-2')
                                     elif niveau == 1:
                                         with ui.row().classes('w-full px-1 bg-blue-50 border-t-2 border-blue-300'):
                                             ui.label('').classes('w-12 px-2')
                                             ui.label('').classes('w-6')
-                                            ui.label('').classes('w-20 px-2')
                                             ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-blue-800')
                                             ui.label('').classes('w-24 px-2')
                                             ui.label('').classes('w-32 px-2')
                                             ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-blue-800')
-                                            ui.label('').classes('w-56 px-2')
-                
-                # Variables pour stocker les indices de drag and drop
-                drag_indices = {'old': -1, 'new': -1, 'pending': False}
-                
-                # Fonction pour initialiser Sortable.js
-                def init_sortable():
-                    """Initialise ou réinitialise Sortable.js sur le conteneur"""
-                    ui.run_javascript('''
-                        setTimeout(function() {
-                            const el = document.getElementById('devis-lines-sortable');
-                            if (el && typeof Sortable !== 'undefined') {
-                                // Détruire l'instance existante si elle existe
-                                if (el.sortableInstance) {
-                                    el.sortableInstance.destroy();
-                                }
-                                // Créer une nouvelle instance
-                                el.sortableInstance = new Sortable(el, {
-                                    animation: 150,
-                                    handle: '.cursor-move',
-                                    draggable: '[data-id]',
-                                    ghostClass: 'opacity-50',
-                                    onEnd: function(evt) {
-                                        // Récupérer les data-id au lieu des indices DOM
-                                        const draggableItems = el.querySelectorAll('[data-id]');
-                                        let oldIndex = -1;
-                                        let newIndex = -1;
-                                        
-                                        // Trouver les indices réels en comptant seulement les éléments draggables
-                                        for (let i = 0; i < draggableItems.length; i++) {
-                                            if (draggableItems[i] === evt.item) {
-                                                newIndex = i;
-                                            }
-                                        }
-                                        
-                                        // L'ancien index est stocké avant le déplacement
-                                        oldIndex = parseInt(evt.item.getAttribute('data-id'));
-                                        
-                                        // Stocker les indices dans des variables globales
-                                        window.dragOldIndex = oldIndex;
-                                        window.dragNewIndex = newIndex;
-                                        window.dragPending = true;
-                                    }
-                                });
-                            }
-                        }, 100);
-                    ''')
-                
-                # Fonction de réorganisation pour Sortable.js
-                def handle_reorder():
-                    """Réorganise les lignes suite à un drag and drop"""
-                    if drag_indices['pending']:
-                        old_index = drag_indices['old']
-                        new_index = drag_indices['new']
-                        
-                        if 0 <= old_index < len(app_instance.current_devis_lignes) and 0 <= new_index < len(app_instance.current_devis_lignes):
-                            # Déplacer la ligne
-                            ligne = app_instance.current_devis_lignes.pop(old_index)
-                            app_instance.current_devis_lignes.insert(new_index, ligne)
-                            recalculate_ouvrage_niveaux()
-                            refresh_table()
-                            app_instance.update_totals()
-                            
-                            # Sauvegarder automatiquement le nouvel ordre
-                            try:
-                                if app_instance.current_devis_lignes and hasattr(app_instance, 'numero_devis_field'):
-                                    numero = app_instance.numero_devis_field.value
-                                    existing_devis = next((d for d in app_instance.dm.devis_list if d.numero == numero), None)
-                                    if existing_devis:
-                                        # Mettre à jour tous les champs du devis
-                                        existing_devis.date = app_instance.date_devis_field.value if hasattr(app_instance, 'date_devis_field') else existing_devis.date
-                                        existing_devis.client_id = app_instance.selected_client_id if app_instance.selected_client_id else existing_devis.client_id
-                                        existing_devis.objet = app_instance.objet_devis_field.value if hasattr(app_instance, 'objet_devis_field') else existing_devis.objet
-                                        existing_devis.lignes = app_instance.current_devis_lignes
-                                        existing_devis.coefficient_marge = app_instance.current_devis_coefficient
-                                        existing_devis.tva = app_instance.tva_rate_field.value if hasattr(app_instance, 'tva_rate_field') and app_instance.tva_rate_field else existing_devis.tva
-                                        
-                                        app_instance.dm.update_devis(existing_devis)
-                            except Exception as e:
-                                pass  # Ignorer les erreurs silencieusement
-                            
-                            # Réinitialiser Sortable après le refresh
-                            init_sortable()
-                        
-                        drag_indices['pending'] = False
-                
-                # Timer qui vérifie s'il y a un drag and drop en attente
-                check_timer = ui.timer(0.1, handle_reorder, active=True)
-                
-                # Fonction pour récupérer les indices depuis JavaScript
-                async def get_drag_indices():
-                    result = await ui.run_javascript('''
-                        if (window.dragPending) {
-                            window.dragPending = false;
-                            return {old: window.dragOldIndex, new: window.dragNewIndex};
-                        }
-                        return null;
-                    ''', timeout=1.0)
+                                            ui.label('').classes('w-32 px-2')
                     
-                    if result:
-                        drag_indices['old'] = result.get('old', -1)
-                        drag_indices['new'] = result.get('new', -1)
-                        drag_indices['pending'] = True
-                
-                # Timer pour récupérer les indices
-                ui.timer(0.2, get_drag_indices, active=True)
-                
-                # Initialiser Sortable.js au démarrage
-                init_sortable()
+                    print(f"[PYTHON] Calling init_sortable()")
+                    # Toujours réinitialiser le drag and drop après chaque refresh
+                    init_sortable()
+
                 
                 def show_edit_dialog(idx):
                     """Affiche la dialog d'édition pour une ligne"""
@@ -780,7 +721,8 @@ def create_devis_panel(app_instance):
                     refresh_table()
                     app_instance.update_totals()
                 
-                # Appeler refresh_table pour afficher le tableau initial
+                # Initialiser Sortable.js et afficher le tableau initial
+                init_sortable()
                 refresh_table()
         
         # Stocker pour l'utiliser lors du chargement d'un devis
@@ -820,7 +762,7 @@ def create_devis_panel(app_instance):
                     existing_devis = next((d for d in app_instance.dm.devis_list if d.numero == numero), None)
                     
                     if existing_devis:
-                        existing_devis.date = date_devis.value
+                        # Ne pas modifier la date de création
                         existing_devis.client_id = app_instance.selected_client_id
                         existing_devis.objet = objet_devis.value
                         existing_devis.lignes = app_instance.current_devis_lignes
@@ -828,6 +770,11 @@ def create_devis_panel(app_instance):
                         existing_devis.tva = app_instance.tva_rate_field.value if app_instance.tva_rate_field else 20.0
                         
                         app_instance.dm.update_devis(existing_devis)
+                        # Recharger le devis depuis la base pour avoir la valeur à jour
+                        updated = next((d for d in app_instance.dm.devis_list if d.numero == numero), None)
+                        if updated:
+                            app_instance.current_devis = updated
+                            objet_devis.value = updated.objet
                         notify_success(f'Devis {numero} mis à jour')
                     else:
                         devis = Devis(

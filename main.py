@@ -1,3 +1,22 @@
+
+# ...existing code...
+
+from nicegui import ui, app as nicegui_app
+from erp.ui.app import DevisApp
+from pathlib import Path
+import sys
+import os
+from dotenv import load_dotenv
+
+# Route explicite pour la liste des devis (après tous les imports)
+@ui.page('/liste')
+def liste_devis_page():
+    from erp.ui.utils import get_logger
+    logger = get_logger('main')
+    logger.info('Page /liste appelée')
+    init_styles()
+    app = get_app()
+    app.create_main_ui(default_subsection='liste')
 from nicegui import ui, app as nicegui_app
 from erp.ui.app import DevisApp
 from pathlib import Path
@@ -341,7 +360,7 @@ def login_page(redirect_to: str = '/'):
     
     # Si déjà authentifié, rediriger
     if nicegui_app.storage.user.get('authenticated', False):
-        return RedirectResponse('/')
+      return RedirectResponse('/liste')
     
     def try_login():
         from erp.utils.logger import get_logger
@@ -381,44 +400,47 @@ def login_page(redirect_to: str = '/'):
 
 
 # Page principale 
+from nicegui import app as nicegui_app
+from starlette.requests import Request
+
 @ui.page('/')
-def index_page():
+def index_page(request: Request):
     """Page principale de l'application"""
     from erp.utils.logger import get_logger
     logger = get_logger('main')
-    
+
     logger.info("=== INDEX PAGE CALLED ===")
     logger.info(f"Storage contents: {dict(nicegui_app.storage.user)}")
-    
+
     # Initialiser les styles
     init_styles()
-    
+
     # Récupérer la session
     session_id = nicegui_app.storage.user.get('session_id')
     logger.info(f"Session ID from storage: {session_id}")
-    
+
     # Vérifier que la session est valide avec l'auth_manager global
     current_user = _auth_manager.get_current_user(session_id)
     logger.info(f"Current user: {current_user}")
-    
+
     if not current_user:
         logger.warning("No valid user, redirecting to login")
         nicegui_app.storage.user.clear()
         return RedirectResponse('/login')
-    
+
     logger.info(f"Creating main UI for user {current_user.username}")
-    
+
     # Charger le thème depuis le storage utilisateur
     from erp.config.theme import get_theme, set_accent_color
     saved_color = nicegui_app.storage.user.get('theme_accent_color', '#c84c3c')
     logger.info(f"Theme color from storage: {saved_color}")
     set_accent_color(saved_color, save_to_storage=False)
-    
+
     # Créer l'interface principale
     app = get_app()
     app.current_user = current_user
     app.session_id = session_id
-    
+
     # Appliquer le thème via CSS avant de créer l'UI
     ui.run_javascript(f'''
         document.documentElement.style.setProperty('--todoist-accent', '{saved_color}');
@@ -427,10 +449,11 @@ def index_page():
         document.body.style.setProperty('--todoist-accent', '{saved_color}');
         document.body.style.setProperty('--q-primary', '{saved_color}');
     ''')
-    
-    app.create_main_ui()
-    
-    logger.info("Main UI created successfully")
+
+    # Forcer la section par défaut sur la liste des devis et afficher la structure complète
+    app.current_section = {'value': 'liste_devis'}
+    app.create_main_ui(default_subsection='liste')
+    logger.info("Affichage de la structure complète avec la liste des devis sur la page d'accueil")
 
 
 def main():

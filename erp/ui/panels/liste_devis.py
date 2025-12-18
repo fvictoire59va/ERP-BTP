@@ -35,7 +35,8 @@ def create_liste_devis_panel(app_instance):
                     ui.label('').classes('w-8 text-center')
                     ui.label('Numéro').classes('w-36 font-semibold text-center')
                     ui.label('Date').classes('w-24 font-semibold text-center')
-                    ui.label('Client').classes('flex-1 font-semibold')
+                    ui.label('Client').classes('w-48 font-semibold')
+                    ui.label('Objet').classes('flex-1 font-semibold')
                     ui.label('Statut').classes('w-32 font-semibold text-center')
                     ui.label('Total HT').classes('w-28 text-right font-semibold')
                     ui.label('Total TTC').classes('w-28 text-right font-semibold')
@@ -58,7 +59,8 @@ def create_liste_devis_panel(app_instance):
                         expand_btn.classes('w-8')
                         ui.label(current_devis.numero).classes('w-36 font-medium themed-accent')
                         ui.label(current_devis.date).classes('w-24')
-                        ui.label(client_name).classes('flex-1')
+                        ui.label(client_name).classes('w-48')
+                        ui.label(current_devis.objet or '').classes('flex-1 overflow-hidden text-ellipsis')
                         
                         # Selecteur de statut
                         statut_options = ['en cours', 'envoyé', 'refusé', 'accepté']
@@ -87,8 +89,8 @@ def create_liste_devis_panel(app_instance):
                                     app_instance.current_devis_numero = devis_numero
                                     app_instance.is_editing_existing_devis = True
                                     
-                                    # Copier les lignes du devis sélectionné
-                                    app_instance.current_devis_lignes = list(devis_obj.lignes) if devis_obj.lignes else []
+                                    # Copier les lignes du devis sélectionné dans l'ordre d'origine
+                                    app_instance.current_devis_lignes = [ligne for ligne in devis_obj.lignes] if devis_obj.lignes else []
                                     app_instance.current_devis_coefficient = devis_obj.coefficient_marge
                                     app_instance.selected_client_id = devis_obj.client_id
                                     
@@ -96,8 +98,8 @@ def create_liste_devis_panel(app_instance):
                                     if hasattr(app_instance, 'show_section_with_children'):
                                         # Mettre à jour la section courante
                                         app_instance.current_section['value'] = 'devis'
-                                        # Naviguer vers la section Devis avec son menu horizontal
-                                        app_instance.show_section_with_children('devis', ['devis', 'liste'])
+                                        # Naviguer vers la section Devis avec le menu secondaire : d'abord 'liste', puis 'devis'
+                                        app_instance.show_section_with_children('devis', ['liste', 'devis'])
                                         # Sélectionner l'onglet 'devis' dans le menu horizontal
                                         if hasattr(app_instance, 'tab_selector'):
                                             app_instance.tab_selector.value = 'devis_tab'
@@ -112,18 +114,19 @@ def create_liste_devis_panel(app_instance):
                                             app_instance.client_select.set_value(devis_obj.client_id)
                                         if hasattr(app_instance, 'tva_rate_field') and app_instance.tva_rate_field:
                                             app_instance.tva_rate_field.set_value(devis_obj.tva)
-                                        
+                                        if hasattr(app_instance, 'objet_devis_field') and app_instance.objet_devis_field:
+                                            app_instance.objet_devis_field.set_value(devis_obj.objet or "")
                                         # Recalculer next_ligne_id basé sur les lignes existantes
                                         if devis_obj.lignes:
                                             app_instance.next_ligne_id = max(l.id for l in devis_obj.lignes) + 1
                                         else:
                                             app_instance.next_ligne_id = 0
-                                        
                                         # Rafraîchir le tableau des lignes
                                         if hasattr(app_instance, 'refresh_devis_table') and app_instance.refresh_devis_table:
                                             app_instance.refresh_devis_table()
                                         app_instance.update_totals()
-                                        notify_success(f'Devis {devis_numero} chargé pour modification')
+                                        from erp.ui.utils import notify_info
+                                        notify_info(f'Devis {devis_numero} chargé pour modification')
                                     
                                     ui.timer(0.2, load_devis_data, once=True)
                                 return modify_devis

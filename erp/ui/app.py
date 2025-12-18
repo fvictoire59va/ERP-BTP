@@ -318,8 +318,8 @@ class DevisApp:
             btn.classes('themed-link hover:bg-gray-100')
         return btn
 
-    def create_main_ui(self):
-        """Cree l'interface principale"""
+    def create_main_ui(self, default_subsection=None):
+        """Cree l'interface principale, avec possibilité de choisir la tab secondaire par défaut"""
         from erp.core.auth import AuthManager
         from nicegui import app as nicegui_app
         
@@ -361,7 +361,7 @@ class DevisApp:
                 ('Paramètres', 'Paramètres'),
             ]
             
-            current_section = {'value': 'devis'}
+            current_section = {'value': 'liste_devis'}
             
             def on_menu_selection(item_label: str):
                 """Callback du menu - change la section affichée"""
@@ -413,7 +413,11 @@ class DevisApp:
                             elif content_key == 'organisation':
                                 self.create_company_panel()
                             elif content_key == 'devis':
-                                self.create_devis_panel()
+                                # Afficher la liste des devis par défaut si aucun devis n'est explicitement sélectionné
+                                if not hasattr(self, 'current_devis_numero') or not self.current_devis_numero:
+                                    self.create_liste_devis_panel()
+                                else:
+                                    self.create_devis_panel()
                             elif content_key == 'projets':
                                 self.create_projets_panel()
                             elif content_key == 'ouvrages':
@@ -439,7 +443,7 @@ class DevisApp:
                             elif content_key == 'categories':
                                 self.create_categories_panel()
                     
-                    def show_section_with_children(section_key, subsections):
+                    def show_section_with_children(section_key, subsections, default_subsection=None):
                         """Affiche la section avec ses sous-menus horizontaux"""
                         # Réinitialiser le menu horizontal
                         horizontal_menu_container.clear()
@@ -502,7 +506,10 @@ class DevisApp:
                         
                         # Afficher le contenu initial
                         if subsections:
-                            show_content(subsections[0])
+                            # Sélectionner la tab par défaut si précisé
+                            default_tab = f"{default_subsection}_tab" if default_subsection in subsections else f"{subsections[0]}_tab"
+                            tab_selector.value = default_tab
+                            show_content(default_subsection if default_subsection in subsections else subsections[0])
                         else:
                             show_content(section_key)
                     
@@ -512,7 +519,8 @@ class DevisApp:
                     self.current_section = current_section
                     
                     # Afficher la section par défaut (devis)
-                    show_section_with_children('devis', ['devis', 'liste'])
+                    # Utiliser la sous-section par défaut si précisé
+                    show_section_with_children('devis', ['liste', 'devis'], default_subsection=default_subsection)
 
     def create_devis_panel(self):
         """Cree le panneau de gestion des devis"""
