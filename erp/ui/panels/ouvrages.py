@@ -193,6 +193,9 @@ def create_ouvrages_panel(app_instance):
                         with ui.dialog() as article_dialog, ui.card().classes('w-full max-w-4xl'):
                             ui.label('Choisir un article du catalogue').classes('text-xl font-bold mb-4')
                             
+                            # State pour la sous-catégorie
+                            selected_sous_cat_filter = {'value': None}
+                            
                             # Conteneur pour les filtres
                             with ui.row().classes('w-full gap-4 mb-4'):
                                 search_input = ui.input(placeholder='Rechercher (référence, désignation...)').classes('flex-1')
@@ -223,6 +226,40 @@ def create_ouvrages_panel(app_instance):
                                     value='tous'
                                 ).classes('w-48')
                             
+                            # Conteneur pour le filtre de sous-catégorie (dynamique)
+                            sous_cat_filter_container = ui.row().classes('w-full gap-4 mb-4')
+                            
+                            def update_sous_cat_filter():
+                                """Mettre à jour le filtre de sous-catégorie"""
+                                sous_cat_filter_container.clear()
+                                selected_sous_cat_filter['value'] = None
+                                
+                                if categorie_filter.value == 'toutes':
+                                    return
+                                
+                                # Trouver la catégorie sélectionnée
+                                cat = next((c for c in categories_data if c['id'] == categorie_filter.value), None)
+                                if not cat or not cat.get('children'):
+                                    return
+                                
+                                # Construire les options de sous-catégorie
+                                sous_cat_options = {'toutes': 'Toutes les sous-catégories'}
+                                sous_cat_options.update({child['id']: child['label'] for child in cat['children']})
+                                
+                                with sous_cat_filter_container:
+                                    ui.label('').classes('flex-1')  # Spacer
+                                    
+                                    def on_sous_cat_filter_change(e):
+                                        selected_sous_cat_filter['value'] = e.value if e.value != 'toutes' else None
+                                        filter_articles()
+                                    
+                                    ui.select(
+                                        label='Sous-catégorie',
+                                        options=sous_cat_options,
+                                        value='toutes',
+                                        on_change=on_sous_cat_filter_change
+                                    ).classes('w-48')
+                            
                             # Conteneur pour la liste des articles
                             articles_list_container = ui.column().classes('w-full gap-0 max-h-96 overflow-y-auto')
                             
@@ -233,9 +270,18 @@ def create_ouvrages_panel(app_instance):
                                 # Récupérer tous les articles
                                 articles = app_instance.dm.articles
                                 
-                                # Filtrer par catégorie
-                                if categorie_filter.value != 'toutes':
-                                    articles = [a for a in articles if getattr(a, 'categorie', 'general') == categorie_filter.value]
+                                # Filtrer par sous-catégorie si sélectionnée
+                                if selected_sous_cat_filter['value']:
+                                    articles = [a for a in articles if getattr(a, 'categorie', 'general') == selected_sous_cat_filter['value']]
+                                # Sinon filtrer par catégorie (en tenant compte des sous-catégories)
+                                elif categorie_filter.value != 'toutes':
+                                    # Trouver la catégorie sélectionnée et ses sous-catégories
+                                    cat_node = next((c for c in categories_data if c['id'] == categorie_filter.value), None)
+                                    if cat_node:
+                                        allowed_categories = [categorie_filter.value]
+                                        if cat_node.get('children'):
+                                            allowed_categories.extend([child['id'] for child in cat_node['children']])
+                                        articles = [a for a in articles if getattr(a, 'categorie', 'general') in allowed_categories]
                                 
                                 # Filtrer par type
                                 if type_filter.value != 'tous':
@@ -292,20 +338,17 @@ def create_ouvrages_panel(app_instance):
                                             ui.button('Ajouter', on_click=add_this_article).classes('themed-button')
                             
                             # Événements pour le filtrage en temps réel
-                            def on_search_change(e):
+                            search_input.on_value_change(lambda: filter_articles())
+                            
+                            def on_categorie_change():
+                                update_sous_cat_filter()
                                 filter_articles()
                             
-                            def on_categorie_change(e):
-                                filter_articles()
+                            categorie_filter.on_value_change(lambda: on_categorie_change())
+                            type_filter.on_value_change(lambda: filter_articles())
                             
-                            def on_type_change(e):
-                                filter_articles()
-                            
-                            search_input.on_value_change(on_search_change)
-                            categorie_filter.on_value_change(on_categorie_change)
-                            type_filter.on_value_change(on_type_change)
-                            
-                            # Affichage initial
+                            # Initialisation
+                            update_sous_cat_filter()
                             filter_articles()
                             
                             # Bouton fermer

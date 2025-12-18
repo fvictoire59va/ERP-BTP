@@ -313,7 +313,6 @@ class DataManagerPostgres:
             fournisseur_id = article.fournisseur_id if article.fournisseur_id > 0 else None
             
             a_model = ArticleModel(
-                id=article.id,
                 reference=article.reference,
                 designation=article.designation,
                 unite=article.unite,
@@ -323,7 +322,10 @@ class DataManagerPostgres:
                 description=article.description,
                 categorie=article.categorie
             )
+            # Ne pas spécifier l'ID, laisser PostgreSQL le générer automatiquement
             session.add(a_model)
+            session.flush()  # Générer l'ID avant de sortir du contexte
+            article.id = a_model.id  # Mettre à jour l'ID de l'objet
         logger.info(f"Article added: {article.reference}")
     
     def update_article(self, article: Article):

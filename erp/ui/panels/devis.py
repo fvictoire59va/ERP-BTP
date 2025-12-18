@@ -207,6 +207,9 @@ def create_devis_panel(app_instance):
             with ui.column().classes('w-full gap-0'):
                 lines_container = ui.column().classes('w-full gap-0').style('min-width: 100%; min-height: 100px;')
                 
+                # ===== AJOUTER SORTABLE.JS POUR LE DRAG AND DROP =====
+                ui.add_head_html('<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>')
+                
                 # ===== DÉFINIR TOUTES LES FONCTIONS INTERNES EN PREMIER =====
                 
                 def refresh_table():
@@ -291,12 +294,18 @@ def create_devis_panel(app_instance):
                                     total += ligne.prix_ht
                             section_totals[(start_idx, section_niveau)] = total
                         
+                        # Conteneur pour les lignes avec Sortable.js
+                        sortable_container = ui.column().classes('w-full')
+                        sortable_container._props['id'] = 'devis-lines-sortable'
+                        
                         # Afficher les lignes et gérer l'affichage des totaux hiérarchiques
+                        displayed_subtotals = set()  # Pour éviter d'afficher plusieurs fois le même sous-total
+                        
                         for idx, ligne in enumerate(app_instance.current_devis_lignes):
                             niveau = getattr(ligne, 'niveau', 1)
                             
                             # Vérifier si on doit afficher un total avant cette ligne
-                            # (quand on rencontre un nouveau chapitre après une section)
+                            # (quand on change de section : nouveau chapitre de niveau égal ou inférieur)
                             if idx > 0 and ligne.type == 'chapitre':
                                 # Trouver tous les chapitres qui doivent être fermés
                                 chapters_to_close = []
@@ -304,101 +313,108 @@ def create_devis_panel(app_instance):
                                     if app_instance.current_devis_lignes[j].type == 'chapitre':
                                         chapter_niveau = getattr(app_instance.current_devis_lignes[j], 'niveau', 1)
                                         # Fermer ce chapitre si son niveau >= niveau actuel
-                                        if chapter_niveau >= niveau and j in section_totals_map:
+                                        if chapter_niveau >= niveau and j in section_totals_map and j not in displayed_subtotals:
                                             chapters_to_close.append((j, chapter_niveau, section_totals_map[j][1]))
                                         # Si on trouve un chapitre de niveau inférieur, on arrête
                                         if chapter_niveau < niveau:
                                             break
                                 
-                                # Afficher les sous-totaux du plus profond au plus haut
-                                for chapter_idx, chapter_niveau, chapter_total in reversed(chapters_to_close):
-                                    chapter_titre = app_instance.current_devis_lignes[chapter_idx].titre
-                                    if chapter_niveau == 3:
-                                        with ui.row().classes('w-full px-1 bg-purple-50 border-t-2 border-purple-300'):
-                                            ui.label('').classes('w-12 px-2')
-                                            ui.label('').classes('w-6')
-                                            ui.label('').classes('w-16 px-1')
-                                            ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-purple-800')
-                                            ui.label('').classes('w-24 px-2')
-                                            ui.label('').classes('w-32 px-2')
-                                            ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-purple-800')
-                                            ui.label('').classes('w-32 px-2')
-                                    elif chapter_niveau == 2:
-                                        with ui.row().classes('w-full px-1 bg-green-50 border-t-2 border-green-300'):
-                                            ui.label('').classes('w-12 px-2')
-                                            ui.label('').classes('w-6')
-                                            ui.label('').classes('w-16 px-1')
-                                            ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-green-800')
-                                            ui.label('').classes('w-24 px-2')
-                                            ui.label('').classes('w-32 px-2')
-                                            ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-green-800')
-                                            ui.label('').classes('w-32 px-2')
-                            
-                            with ui.column().classes('w-full'):
-                                toggle_state = {'expanded': False}
-                                expand_btn = None
+                                # Trier par niveau décroissant (3 -> 2 -> 1) pour afficher du plus profond au plus haut
+                                chapters_to_close.sort(key=lambda x: -x[1])
                                 
-                                with ui.row().classes('w-full px-1 items-center hover:bg-gray-50 cursor-pointer transition-colors'):
-                                    # Colonne niveau
-                                    ui.label(f'{niveau}').classes('w-12 px-2 text-center font-semibold text-gray-600 border-r-2 border-gray-300')
+                                # Afficher les sous-totaux du plus profond au plus haut
+                                for chapter_idx, chapter_niveau, chapter_total in chapters_to_close:
+                                    chapter_titre = app_instance.current_devis_lignes[chapter_idx].titre
+                                    displayed_subtotals.add(chapter_idx)  # Marquer comme affiché
                                     
-                                    if ligne.type == 'chapitre':
-                                        # Déterminer la taille de police selon le niveau (pour la colonne Contenu uniquement)
-                                        if niveau == 1:
-                                            text_size = 'text-lg'  # +2
-                                        elif niveau == 2:
-                                            text_size = 'text-base'  # +1
-                                        else:  # niveau 3
-                                            text_size = 'text-sm'  # standard
+                                    with sortable_container:
+                                        if chapter_niveau == 3:
+                                            with ui.row().classes('w-full px-1 bg-purple-50 border-t-2 border-purple-300'):
+                                                ui.label('').classes('w-12 px-2')
+                                                ui.label('').classes('w-6')
+                                                ui.label('').classes('w-16 px-1')
+                                                ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-purple-800')
+                                                ui.label('').classes('w-24 px-2')
+                                                ui.label('').classes('w-32 px-2')
+                                                ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-purple-800')
+                                                ui.label('').classes('w-32 px-2')
+                                        elif chapter_niveau == 2:
+                                            with ui.row().classes('w-full px-1 bg-green-50 border-t-2 border-green-300'):
+                                                ui.label('').classes('w-12 px-2')
+                                                ui.label('').classes('w-6')
+                                                ui.label('').classes('w-16 px-1')
+                                                ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-green-800')
+                                                ui.label('').classes('w-24 px-2')
+                                                ui.label('').classes('w-32 px-2')
+                                                ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-green-800')
+                                                ui.label('').classes('w-32 px-2')
+                            
+                            with sortable_container:
+                                with ui.column().classes('w-full').props(f'data-id="{idx}"'):
+                                    toggle_state = {'expanded': False}
+                                    expand_btn = None
+                                    
+                                    with ui.row().classes('w-full px-1 items-center hover:bg-gray-50 cursor-move transition-colors'):
+                                        # Colonne niveau
+                                        ui.label(f'{niveau}').classes('w-12 px-2 text-center font-semibold text-gray-600 border-r-2 border-gray-300')
                                         
-                                        with ui.column().classes('w-6'):
-                                            ui.label('')
-                                        with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
-                                            if idx > 0:
-                                                app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                            if idx < len(app_instance.current_devis_lignes) - 1:
-                                                app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                        ui.label(ligne.titre).classes(f'flex-1 px-2 font-semibold {text_size} overflow-hidden text-ellipsis border-r-2 border-gray-300')
-                                        ui.label('').classes('w-24 px-2 border-r-2 border-gray-300')
-                                        ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
-                                        ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
-                                    elif ligne.type == 'texte':
-                                        with ui.column().classes('w-6'):
-                                            ui.label('')
-                                        with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
-                                            if idx > 0:
-                                                app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                            if idx < len(app_instance.current_devis_lignes) - 1:
-                                                app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                        ui.label(ligne.texte).classes('flex-1 px-2 italic text-gray-600 overflow-hidden text-ellipsis border-r-2 border-gray-300')
-                                        ui.label('').classes('w-24 px-2 border-r-2 border-gray-300')
-                                        ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
-                                        ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
-                                    else:  # ouvrage
-                                        with ui.column().classes('w-6'):
-                                            if ligne.composants:
-                                                expand_btn = app_instance.material_icon_button('chevron_right', on_click=None)
-                                            else:
-                                                expand_btn = None
+                                        if ligne.type == 'chapitre':
+                                            # Déterminer la taille de police selon le niveau (pour la colonne Contenu uniquement)
+                                            if niveau == 1:
+                                                text_size = 'text-lg'  # +2
+                                            elif niveau == 2:
+                                                text_size = 'text-base'  # +1
+                                            else:  # niveau 3
+                                                text_size = 'text-sm'  # standard
+                                            
+                                            with ui.column().classes('w-6'):
                                                 ui.label('')
-                                        with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
-                                            if idx > 0:
-                                                app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                            if idx < len(app_instance.current_devis_lignes) - 1:
-                                                app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
-                                        ui.label(ligne.description if ligne.description else ligne.designation).classes('flex-1 px-2 overflow-hidden text-ellipsis border-r-2 border-gray-300')
-                                        ui.label(f"{ligne.quantite:.2f}").classes('w-24 px-2 text-right overflow-hidden border-r-2 border-gray-300')
-                                        ui.label(f"{ligne.prix_unitaire:.2f}").classes('w-32 px-2 text-right overflow-hidden border-r-2 border-gray-300')
-                                        ui.label(f"{ligne.prix_ht:.2f}").classes('w-32 px-2 text-right font-bold overflow-hidden border-r-2 border-gray-300')
-                                    
-                                    # Boutons d'action
-                                    with ui.row().classes('w-32 px-2 gap-1 items-center flex-nowrap'):
-                                        def edit_ligne(i=idx):
-                                            show_edit_dialog(i)
+                                            with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
+                                                if idx > 0:
+                                                    app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                                if idx < len(app_instance.current_devis_lignes) - 1:
+                                                    app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                            ui.label(ligne.titre).classes(f'flex-1 px-2 font-semibold {text_size} overflow-hidden text-ellipsis border-r-2 border-gray-300')
+                                            ui.label('').classes('w-24 px-2 border-r-2 border-gray-300')
+                                            ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
+                                            ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
+                                        elif ligne.type == 'texte':
+                                            with ui.column().classes('w-6'):
+                                                ui.label('')
+                                            with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
+                                                if idx > 0:
+                                                    app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                                if idx < len(app_instance.current_devis_lignes) - 1:
+                                                    app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                            ui.label(ligne.texte).classes('flex-1 px-2 italic text-gray-600 overflow-hidden text-ellipsis border-r-2 border-gray-300')
+                                            ui.label('').classes('w-24 px-2 border-r-2 border-gray-300')
+                                            ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
+                                            ui.label('').classes('w-32 px-2 border-r-2 border-gray-300')
+                                        else:  # ouvrage
+                                            with ui.column().classes('w-6'):
+                                                if ligne.composants:
+                                                    expand_btn = app_instance.material_icon_button('chevron_right', on_click=None)
+                                                else:
+                                                    expand_btn = None
+                                                    ui.label('')
+                                            with ui.row().classes('w-16 gap-0 items-center justify-center border-r-2 border-gray-300').style('flex-wrap: nowrap; min-height: 32px;'):
+                                                if idx > 0:
+                                                    app_instance.material_icon_button('arrow_upward', on_click=lambda i=idx: move_up(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                                if idx < len(app_instance.current_devis_lignes) - 1:
+                                                    app_instance.material_icon_button('arrow_downward', on_click=lambda i=idx: move_down(i)).style('padding: 2px; min-width: 20px;').props('size=xs dense flat')
+                                            ui.label(ligne.description if ligne.description else ligne.designation).classes('flex-1 px-2 overflow-hidden text-ellipsis border-r-2 border-gray-300')
+                                            ui.label(f"{ligne.quantite:.2f}").classes('w-24 px-2 text-right overflow-hidden border-r-2 border-gray-300')
+                                            ui.label(f"{ligne.prix_unitaire:.2f}").classes('w-32 px-2 text-right overflow-hidden border-r-2 border-gray-300')
+                                            ui.label(f"{ligne.prix_ht:.2f}").classes('w-32 px-2 text-right font-bold overflow-hidden border-r-2 border-gray-300')
                                         
-                                        app_instance.material_icon_button('content_copy', on_click=lambda i=idx: duplicate_ligne(i))
-                                        app_instance.material_icon_button('edit', on_click=edit_ligne)
-                                        app_instance.material_icon_button('delete', on_click=lambda i=idx: delete_ligne(i), is_delete=True)
+                                        # Boutons d'action
+                                        with ui.row().classes('w-32 px-2 gap-1 items-center flex-nowrap'):
+                                            def edit_ligne(i=idx):
+                                                show_edit_dialog(i)
+                                            
+                                            app_instance.material_icon_button('content_copy', on_click=lambda i=idx: duplicate_ligne(i))
+                                            app_instance.material_icon_button('edit', on_click=edit_ligne)
+                                            app_instance.material_icon_button('delete', on_click=lambda i=idx: delete_ligne(i), is_delete=True)
                                 
                                 # Afficher les composants si c'est un ouvrage
                                 if ligne.type == 'ouvrage' and hasattr(ligne, 'composants') and ligne.composants:
@@ -461,74 +477,159 @@ def create_devis_panel(app_instance):
                                                 qte_input.on_value_change(lambda e, q=qte_input, p=pu_input, t=total_label: update_display_only(q, p, t))
                                                 pu_input.on_value_change(lambda e, q=qte_input, p=pu_input, t=total_label: update_display_only(q, p, t))
                         
-                        # Afficher les sous-totaux de tous les chapitres ouverts à la fin
+                        # Afficher les sous-totaux de tous les chapitres ouverts à la fin (non encore affichés)
                         if app_instance.current_devis_lignes:
-                            # Trouver tous les chapitres ouverts à la fin (en remontant la hiérarchie)
-                            open_chapters = []
+                            # Trouver le dernier chapitre de chaque niveau (en remontant la hiérarchie)
+                            last_chapters = {}  # {niveau: (idx, titre, total)}
                             for i in range(len(app_instance.current_devis_lignes) - 1, -1, -1):
                                 if app_instance.current_devis_lignes[i].type == 'chapitre':
                                     chapter_niveau = getattr(app_instance.current_devis_lignes[i], 'niveau', 1)
-                                    if i in section_totals_map:
-                                        # Ajouter ce chapitre s'il n'est pas déjà fermé par un chapitre de même niveau
-                                        if not any(niv == chapter_niveau for idx, niv, tot in open_chapters):
-                                            open_chapters.append((i, chapter_niveau, section_totals_map[i][1]))
+                                    # Ne prendre que les chapitres non encore affichés
+                                    if chapter_niveau not in last_chapters and i in section_totals_map and i not in displayed_subtotals:
+                                        last_chapters[chapter_niveau] = (i, app_instance.current_devis_lignes[i].titre, section_totals_map[i][1])
                             
                             # Afficher les sous-totaux du plus profond au plus haut (3 -> 2 -> 1)
-                            for chapter_idx, chapter_niveau, chapter_total in sorted(open_chapters, key=lambda x: -x[1]):
-                                chapter_titre = app_instance.current_devis_lignes[chapter_idx].titre
-                                if chapter_niveau == 3:
-                                    with ui.row().classes('w-full px-1 bg-purple-50 border-t-2 border-purple-300'):
-                                        ui.label('').classes('w-12 px-2')
-                                        ui.label('').classes('w-6')
-                                        ui.label('').classes('w-20 px-2')
-                                        ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-purple-800')
-                                        ui.label('').classes('w-24 px-2')
-                                        ui.label('').classes('w-32 px-2')
-                                        ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-purple-800')
-                                        ui.label('').classes('w-56 px-2')
-                                elif chapter_niveau == 2:
-                                    with ui.row().classes('w-full px-1 bg-green-50 border-t-2 border-green-300'):
-                                        ui.label('').classes('w-12 px-2')
-                                        ui.label('').classes('w-6')
-                                        ui.label('').classes('w-20 px-2')
-                                        ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-green-800')
-                                        ui.label('').classes('w-24 px-2')
-                                        ui.label('').classes('w-32 px-2')
-                                        ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-green-800')
-                                        ui.label('').classes('w-56 px-2')
+                            with sortable_container:
+                                for niveau in sorted(last_chapters.keys(), reverse=True):
+                                    chapter_idx, chapter_titre, chapter_total = last_chapters[niveau]
+                                    if niveau == 3:
+                                        with ui.row().classes('w-full px-1 bg-purple-50 border-t-2 border-purple-300'):
+                                            ui.label('').classes('w-12 px-2')
+                                            ui.label('').classes('w-6')
+                                            ui.label('').classes('w-20 px-2')
+                                            ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-purple-800')
+                                            ui.label('').classes('w-24 px-2')
+                                            ui.label('').classes('w-32 px-2')
+                                            ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-purple-800')
+                                            ui.label('').classes('w-56 px-2')
+                                    elif niveau == 2:
+                                        with ui.row().classes('w-full px-1 bg-green-50 border-t-2 border-green-300'):
+                                            ui.label('').classes('w-12 px-2')
+                                            ui.label('').classes('w-6')
+                                            ui.label('').classes('w-20 px-2')
+                                            ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-green-800')
+                                            ui.label('').classes('w-24 px-2')
+                                            ui.label('').classes('w-32 px-2')
+                                            ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-green-800')
+                                            ui.label('').classes('w-56 px-2')
+                                    elif niveau == 1:
+                                        with ui.row().classes('w-full px-1 bg-blue-50 border-t-2 border-blue-300'):
+                                            ui.label('').classes('w-12 px-2')
+                                            ui.label('').classes('w-6')
+                                            ui.label('').classes('w-20 px-2')
+                                            ui.label(f'Sous-total - {chapter_titre}').classes('flex-1 px-2 font-bold text-blue-800')
+                                            ui.label('').classes('w-24 px-2')
+                                            ui.label('').classes('w-32 px-2')
+                                            ui.label(f"{chapter_total:.2f} €").classes('w-32 px-2 text-right font-bold text-blue-800')
+                                            ui.label('').classes('w-56 px-2')
+                
+                # Variables pour stocker les indices de drag and drop
+                drag_indices = {'old': -1, 'new': -1, 'pending': False}
+                
+                # Fonction pour initialiser Sortable.js
+                def init_sortable():
+                    """Initialise ou réinitialise Sortable.js sur le conteneur"""
+                    ui.run_javascript('''
+                        setTimeout(function() {
+                            const el = document.getElementById('devis-lines-sortable');
+                            if (el && typeof Sortable !== 'undefined') {
+                                // Détruire l'instance existante si elle existe
+                                if (el.sortableInstance) {
+                                    el.sortableInstance.destroy();
+                                }
+                                // Créer une nouvelle instance
+                                el.sortableInstance = new Sortable(el, {
+                                    animation: 150,
+                                    handle: '.cursor-move',
+                                    draggable: '[data-id]',
+                                    ghostClass: 'opacity-50',
+                                    onEnd: function(evt) {
+                                        // Récupérer les data-id au lieu des indices DOM
+                                        const draggableItems = el.querySelectorAll('[data-id]');
+                                        let oldIndex = -1;
+                                        let newIndex = -1;
+                                        
+                                        // Trouver les indices réels en comptant seulement les éléments draggables
+                                        for (let i = 0; i < draggableItems.length; i++) {
+                                            if (draggableItems[i] === evt.item) {
+                                                newIndex = i;
+                                            }
+                                        }
+                                        
+                                        // L'ancien index est stocké avant le déplacement
+                                        oldIndex = parseInt(evt.item.getAttribute('data-id'));
+                                        
+                                        // Stocker les indices dans des variables globales
+                                        window.dragOldIndex = oldIndex;
+                                        window.dragNewIndex = newIndex;
+                                        window.dragPending = true;
+                                    }
+                                });
+                            }
+                        }, 100);
+                    ''')
+                
+                # Fonction de réorganisation pour Sortable.js
+                def handle_reorder():
+                    """Réorganise les lignes suite à un drag and drop"""
+                    if drag_indices['pending']:
+                        old_index = drag_indices['old']
+                        new_index = drag_indices['new']
+                        
+                        if 0 <= old_index < len(app_instance.current_devis_lignes) and 0 <= new_index < len(app_instance.current_devis_lignes):
+                            # Déplacer la ligne
+                            ligne = app_instance.current_devis_lignes.pop(old_index)
+                            app_instance.current_devis_lignes.insert(new_index, ligne)
+                            recalculate_ouvrage_niveaux()
+                            refresh_table()
+                            app_instance.update_totals()
                             
-                            # Afficher le sous-total du dernier chapitre de niveau 1
-                            # Trouver le dernier chapitre de niveau 1
-                            last_niveau_1_idx = None
-                            for i in range(len(app_instance.current_devis_lignes) - 1, -1, -1):
-                                if app_instance.current_devis_lignes[i].type == 'chapitre':
-                                    chapter_niveau = getattr(app_instance.current_devis_lignes[i], 'niveau', 1)
-                                    if chapter_niveau == 1:
-                                        last_niveau_1_idx = i
-                                        break
+                            # Sauvegarder automatiquement le nouvel ordre
+                            try:
+                                if app_instance.current_devis_lignes and hasattr(app_instance, 'numero_devis_field'):
+                                    numero = app_instance.numero_devis_field.value
+                                    existing_devis = next((d for d in app_instance.dm.devis_list if d.numero == numero), None)
+                                    if existing_devis:
+                                        # Mettre à jour tous les champs du devis
+                                        existing_devis.date = app_instance.date_devis_field.value if hasattr(app_instance, 'date_devis_field') else existing_devis.date
+                                        existing_devis.client_id = app_instance.selected_client_id if app_instance.selected_client_id else existing_devis.client_id
+                                        existing_devis.objet = app_instance.objet_devis_field.value if hasattr(app_instance, 'objet_devis_field') else existing_devis.objet
+                                        existing_devis.lignes = app_instance.current_devis_lignes
+                                        existing_devis.coefficient_marge = app_instance.current_devis_coefficient
+                                        existing_devis.tva = app_instance.tva_rate_field.value if hasattr(app_instance, 'tva_rate_field') and app_instance.tva_rate_field else existing_devis.tva
+                                        
+                                        app_instance.dm.update_devis(existing_devis)
+                            except Exception as e:
+                                pass  # Ignorer les erreurs silencieusement
                             
-                            total_general = sum(ligne.prix_ht for ligne in app_instance.current_devis_lignes if ligne.type == 'ouvrage')
-                            if last_niveau_1_idx is not None:
-                                niveau_1_titre = app_instance.current_devis_lignes[last_niveau_1_idx].titre
-                                with ui.row().classes('w-full px-1 bg-blue-50 border-t-2 border-blue-300'):
-                                    ui.label('').classes('w-12 px-2')
-                                    ui.label('').classes('w-6')
-                                    ui.label('').classes('w-20 px-2')
-                                    ui.label(f'Sous-total - {niveau_1_titre}').classes('flex-1 px-2 font-bold text-blue-800')
-                                    ui.label('').classes('w-24 px-2')
-                                    ui.label('').classes('w-32 px-2')
-                                    ui.label(f"{total_general:.2f} €").classes('w-32 px-2 text-right font-bold text-blue-800')
-                                    ui.label('').classes('w-56 px-2')
-                            else:
-                                with ui.row().classes('w-full px-1 bg-blue-50 border-t-2 border-blue-300'):
-                                    ui.label('').classes('w-12 px-2')
-                                    ui.label('').classes('w-6')
-                                    ui.label('').classes('w-20 px-2')
-                                    ui.label(f'Total général').classes('flex-1 px-2 font-bold text-blue-800')
-                                    ui.label('').classes('w-24 px-2')
-                                    ui.label('').classes('w-32 px-2')
-                                    ui.label(f"{total_general:.2f} €").classes('w-32 px-2 text-right font-bold text-blue-800')
-                                    ui.label('').classes('w-56 px-2')
+                            # Réinitialiser Sortable après le refresh
+                            init_sortable()
+                        
+                        drag_indices['pending'] = False
+                
+                # Timer qui vérifie s'il y a un drag and drop en attente
+                check_timer = ui.timer(0.1, handle_reorder, active=True)
+                
+                # Fonction pour récupérer les indices depuis JavaScript
+                async def get_drag_indices():
+                    result = await ui.run_javascript('''
+                        if (window.dragPending) {
+                            window.dragPending = false;
+                            return {old: window.dragOldIndex, new: window.dragNewIndex};
+                        }
+                        return null;
+                    ''', timeout=1.0)
+                    
+                    if result:
+                        drag_indices['old'] = result.get('old', -1)
+                        drag_indices['new'] = result.get('new', -1)
+                        drag_indices['pending'] = True
+                
+                # Timer pour récupérer les indices
+                ui.timer(0.2, get_drag_indices, active=True)
+                
+                # Initialiser Sortable.js au démarrage
+                init_sortable()
                 
                 def show_edit_dialog(idx):
                     """Affiche la dialog d'édition pour une ligne"""
@@ -742,9 +843,12 @@ def create_devis_panel(app_instance):
                         app_instance.dm.add_devis(devis)
                         notify_success(f'Devis {numero} créé')
                     
-                    # Rafraîchir la liste des devis si callback disponible
-                    if hasattr(app_instance, 'display_table_callback'):
-                        app_instance.display_table_callback()
+                    # Rafraîchir la liste des devis si callback disponible (en toute sécurité)
+                    if hasattr(app_instance, 'display_table_callback') and callable(app_instance.display_table_callback):
+                        try:
+                            app_instance.display_table_callback()
+                        except:
+                            pass  # Ignorer les erreurs de rafraîchissement UI
                     
                 except Exception as e:
                     notify_error(f'Erreur: {str(e)}')
