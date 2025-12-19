@@ -26,6 +26,7 @@ class AuthPanel:
         # UI elements
         self.login_container = None
         self.register_container = None
+        self.reset_password_container = None
         self.error_label = None
         
     def render(self, login_container_ref=None) -> ui.column:
@@ -49,6 +50,9 @@ class AuthPanel:
                         )).classes('flex-1')
                         
                         ui.button('S\'inscrire', on_click=self._show_register, color='secondary').classes('flex-1')
+                    
+                    # Lien mot de passe oublié
+                    ui.link('Mot de passe oublié ?', on_click=self._show_reset_password).classes('text-sm text-blue-600 cursor-pointer mt-2')
                 
                 # Register form (hidden by default)
                 with ui.column().classes('w-full gap-4') as self.register_container:
@@ -75,6 +79,28 @@ class AuthPanel:
                         )).classes('flex-1')
                         
                         ui.button('Retour', on_click=self._show_login, color='secondary').classes('flex-1')
+                
+                # Reset password form (hidden by default)
+                with ui.column().classes('w-full gap-4') as self.reset_password_container:
+                    self.reset_password_container.visible = False
+                    
+                    ui.label('Réinitialisation du mot de passe').classes('text-lg font-semibold')
+                    ui.label('Entrez votre adresse email pour recevoir un lien de réinitialisation.').classes('text-sm text-gray-600')
+                    
+                    reset_email = ui.input('Email').classes('w-full')
+                    
+                    self.reset_error_label = ui.label('').classes('text-red-500 text-sm')
+                    self.reset_error_label.visible = False
+                    
+                    self.reset_success_label = ui.label('').classes('text-green-600 text-sm')
+                    self.reset_success_label.visible = False
+                    
+                    with ui.row().classes('w-full gap-2'):
+                        ui.button('Envoyer', on_click=lambda: self._handle_reset_request(
+                            reset_email.value
+                        )).classes('flex-1')
+                        
+                        ui.button('Retour', on_click=self._show_login, color='secondary').classes('flex-1')
         
         return container
     
@@ -82,13 +108,28 @@ class AuthPanel:
         """Affiche le formulaire d'inscription"""
         self.login_container.visible = False
         self.register_container.visible = True
+        self.reset_password_container.visible = False
         self.error_label.visible = False
     
     def _show_login(self):
         """Affiche le formulaire de connexion"""
         self.register_container.visible = False
         self.login_container.visible = True
-        self.register_error_label.visible = False
+        self.reset_password_container.visible = False
+        if hasattr(self, 'register_error_label'):
+            self.register_error_label.visible = False
+        if hasattr(self, 'reset_error_label'):
+            self.reset_error_label.visible = False
+            self.reset_success_label.visible = False
+    
+    def _show_reset_password(self):
+        """Affiche le formulaire de réinitialisation de mot de passe"""
+        self.login_container.visible = False
+        self.register_container.visible = False
+        self.reset_password_container.visible = True
+        self.error_label.visible = False
+        self.reset_error_label.visible = False
+        self.reset_success_label.visible = False
     
     def _handle_login(self, username: str, password: str):
         """Gère la tentative de connexion"""
@@ -166,8 +207,65 @@ class AuthPanel:
             logger.error(f"Registration error: {e}", exc_info=True)
             self.register_error_label.text = f'Erreur lors de l\'inscription: {str(e)}'
             self.register_error_label.visible = True
-
-
+    
+    def _handle_reset_request(self, email: str):
+        """Gère la demande de réinitialisation de mot de passe"""
+        try:
+            # Validation
+            if not email:
+                self.reset_error_label.text = 'Veuillez entrer votre adresse email'
+                self.reset_error_label.visible = True
+                return
+            
+            if '@' not in email or '.' not in email.split('@')[1]:
+                self.reset_error_label.text = 'Adresse email invalide'
+                self.reset_error_label.visible = True
+                return
+            
+            # Demande de réinitialisation
+            reset_token = self.auth_manager.request_password_reset(email)
+            
+            # Pour des raisons de sécurité, on affiche toujours un message de succès
+            # même si l'email n'existe pas (pour ne pas révéler quels emails sont enregistrés)
+            self.reset_error_label.visible = False
+            
+            if reset_token:
+                # Récupérer l'utilisateur pour obtenir son nom
+                user = self.data_manager.get_user_by_email(email)
+                if user:
+                    # Envoyer l'email de réinitialisation
+                    from erp.services.email_service import get_email_service
+                    email_service = get_email_service()
+                    email_sent = email_service.send_password_reset_email(email, reset_token, user.username)
+                    
+                    if email_sent:
+                        logger.info(f"Email de réinitialisation envoyé à {email}")
+                        self.reset_success_label.text = 'Un email de réinitialisation a été envoyé. Vérifiez votre boîte de réception.'
+                    else:
+                        logger.warning(f"Échec de l'envoi de l'email à {email}, affichage du token pour développement")
+                        # En développement, si l'email ne peut pas être envoyé, afficher le lien
+                        import os
+                        app_url = os.getenv('APP_URL', 'http://localhost:8080')
+                        reset_link = f"{app_url}/reset-password?token={reset_token}"
+                        self.reset_success_label.text = f'Email non configuré. Lien de réinitialisation : {reset_link}'
+                    
+                    self.reset_success_label.visible = True
+                    
+                    # Retour au formulaire de connexion après 5 secondes
+                    ui.timer(5.0, lambda: self._show_login(), once=True)
+            else:
+                # Même si le token n'est pas créé, on affiche un message générique
+                self.reset_success_label.text = 'Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.'
+                self.reset_success_label.visible = True
+                
+                # Retour au formulaire de connexion après 5 secondes
+                ui.timer(5.0, lambda: self._show_login(), once=True)
+                
+        except Exception as e:
+            logger.error(f"Reset request error: {e}", exc_info=True)
+            self.reset_error_label.text = f'Erreur lors de la demande: {str(e)}'
+            self.reset_error_label.visible = True
+    
 def login_panel(on_login_success: Callable[[str, str], None], login_container_ref=None) -> ui.column:
     """
     Crée et affiche le panel de connexion

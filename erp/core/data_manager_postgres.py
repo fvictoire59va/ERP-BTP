@@ -47,6 +47,11 @@ class DataManagerPostgres:
         db_manager.initialize()
         db_manager.create_tables()
         
+        # Définir le dossier data pour les PDF
+        project_root = Path(__file__).parent.parent.parent
+        self.data_dir = project_root / 'data'
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        
         logger.info("DataManagerPostgres initialized with PostgreSQL")
         self._initialized = True
     

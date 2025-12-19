@@ -1,22 +1,3 @@
-
-# ...existing code...
-
-from nicegui import ui, app as nicegui_app
-from erp.ui.app import DevisApp
-from pathlib import Path
-import sys
-import os
-from dotenv import load_dotenv
-
-# Route explicite pour la liste des devis (après tous les imports)
-@ui.page('/liste')
-def liste_devis_page():
-    from erp.ui.utils import get_logger
-    logger = get_logger('main')
-    logger.info('Page /liste appelée')
-    init_styles()
-    app = get_app()
-    app.create_main_ui(default_subsection='liste')
 from nicegui import ui, app as nicegui_app
 from erp.ui.app import DevisApp
 from pathlib import Path
@@ -342,7 +323,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-unrestricted_page_routes = {'/login'}
+unrestricted_page_routes = {'/login', '/reset-password'}
 
 # Créer une instance globale de l'AuthManager (partagée entre toutes les pages)
 from erp.core.auth import AuthManager
@@ -350,6 +331,70 @@ from erp.core.storage_config import get_data_manager
 
 _data_manager = get_data_manager()
 _auth_manager = AuthManager(_data_manager)
+
+# Page de réinitialisation de mot de passe avec token
+@ui.page('/reset-password')
+def reset_password_page(token: str = ''):
+    """Page de réinitialisation de mot de passe avec token"""
+    from erp.utils.logger import get_logger
+    logger = get_logger('main')
+    
+    init_styles()
+    
+    with ui.column().classes('w-full h-full items-center justify-center bg-gray-100'):
+        with ui.card().classes('w-96 p-6'):
+            if not token:
+                ui.label('Lien invalide').classes('text-2xl font-bold mb-4 text-red-600')
+                ui.label('Le lien de réinitialisation est invalide ou manquant.').classes('text-sm text-gray-600 mb-4')
+                ui.button('Retour à la connexion', on_click=lambda: ui.navigate.to('/login')).classes('w-full')
+                return
+            
+            # Vérifier si le token est valide
+            user_id = _auth_manager.session_manager.get_user_id_from_reset_token(token)
+            if not user_id:
+                ui.label('Lien expiré').classes('text-2xl font-bold mb-4 text-red-600')
+                ui.label('Ce lien de réinitialisation a expiré ou a déjà été utilisé.').classes('text-sm text-gray-600 mb-4')
+                ui.button('Demander un nouveau lien', on_click=lambda: ui.navigate.to('/login')).classes('w-full')
+                return
+            
+            # Formulaire de nouveau mot de passe
+            ui.label('Nouveau mot de passe').classes('text-2xl font-bold mb-4')
+            ui.label('Entrez votre nouveau mot de passe.').classes('text-sm text-gray-600 mb-4')
+            
+            new_password = ui.input('Nouveau mot de passe', password=True, password_toggle_button=True).classes('w-full')
+            confirm_password = ui.input('Confirmer le mot de passe', password=True, password_toggle_button=True).classes('w-full')
+            
+            error_label = ui.label('').classes('text-red-500 text-sm')
+            error_label.visible = False
+            
+            def reset_password():
+                if not new_password.value or not confirm_password.value:
+                    error_label.text = 'Veuillez remplir tous les champs'
+                    error_label.visible = True
+                    return
+                
+                if new_password.value != confirm_password.value:
+                    error_label.text = 'Les mots de passe ne correspondent pas'
+                    error_label.visible = True
+                    return
+                
+                if len(new_password.value) < 6:
+                    error_label.text = 'Le mot de passe doit contenir au moins 6 caractères'
+                    error_label.visible = True
+                    return
+                
+                # Réinitialiser le mot de passe
+                success = _auth_manager.reset_password(token, new_password.value)
+                
+                if success:
+                    logger.info("Mot de passe réinitialisé avec succès via email")
+                    ui.notify('Mot de passe réinitialisé avec succès ! Vous pouvez maintenant vous connecter.', type='positive')
+                    ui.navigate.to('/login')
+                else:
+                    error_label.text = 'Erreur lors de la réinitialisation. Le lien a peut-être expiré.'
+                    error_label.visible = True
+            
+            ui.button('Réinitialiser', on_click=reset_password).classes('w-full mt-4')
 
 # Page de login
 @ui.page('/login')
@@ -360,7 +405,7 @@ def login_page(redirect_to: str = '/'):
     
     # Si déjà authentifié, rediriger
     if nicegui_app.storage.user.get('authenticated', False):
-      return RedirectResponse('/liste')
+      return RedirectResponse('/')
     
     def try_login():
         from erp.utils.logger import get_logger
@@ -395,6 +440,10 @@ def login_page(redirect_to: str = '/'):
             username = ui.input('Nom d\'utilisateur').classes('w-full').on('keydown.enter', try_login)
             password = ui.input('Mot de passe', password=True, password_toggle_button=True).classes('w-full').on('keydown.enter', try_login)
             ui.button('Se connecter', on_click=try_login).classes('w-full')
+            
+            # Lien mot de passe oublié
+            with ui.row().classes('w-full justify-center mt-4'):
+                ui.link('Mot de passe oublié ?', '/reset-password').classes('text-sm text-blue-600')
     
     return None
 
@@ -533,6 +582,7 @@ if __name__ in {"__main__", "__mp_main__"}:
         title='ERP BTP',
         favicon=str(favicon_path) if favicon_path.exists() else None,
         dark=False,
+        host='0.0.0.0',
         port=8080,
         reload=not getattr(sys, 'frozen', False),  # Désactiver reload en mode exécutable
         show=True,

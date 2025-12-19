@@ -91,6 +91,29 @@ README_POSTGRES.md
 # PostgreSQL backups
 backups/
 *.sql
+*.dump
+backup_*.sql
+backup_*.dump
+
+# Scripts de déploiement et migration GCP (contiennent config sensible)
+migrate_to_cloud_sql.bat
+migrate_to_cloud_sql_docker.bat
+export_for_cloud_sql.bat
+deploy_to_gcp.bat
+deploy_to_gcp.sh
+import_from_json.py
+docker-import-data.bat
+
+# Archives de déploiement
+erp-btp-deploy.tar.gz
+erp-btp.tar.gz
+
+# Documentation de déploiement spécifique (optionnel, à garder si utile)
+# MIGRATION_CLOUD_SQL.md
+# IMPORT_CLOUD_SQL_CONSOLE.md
+# DEPLOYMENT_GCP_VM.md
+# EMAIL_CONFIG.md
+# INSTALL_PG_CLIENT.md
 
 # OS
 .DS_Store

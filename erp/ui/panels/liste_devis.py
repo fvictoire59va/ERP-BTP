@@ -143,7 +143,15 @@ def create_liste_devis_panel(app_instance):
                                             return
                                         
                                         client = app_instance.dm.get_client_by_id(client_id)
-                                        client_name = f"{client.prenom}_{client.nom}" if client else "Client_inconnu"
+                                        if client:
+                                            if client.prenom and client.nom:
+                                                client_name = f"{client.prenom}_{client.nom}"
+                                            elif client.entreprise:
+                                                client_name = client.entreprise
+                                            else:
+                                                client_name = "Client_inconnu"
+                                        else:
+                                            client_name = "Client_inconnu"
                                         client_name = client_name.replace(" ", "_")
                                         
                                         pdf_dir = app_instance.dm.data_dir / 'pdf' / client_name

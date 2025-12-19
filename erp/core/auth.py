@@ -13,6 +13,8 @@ class SessionManager:
     def __init__(self):
         self.sessions = {}  # session_id -> {'user_id': str, 'expires_at': datetime}
         self.session_duration = timedelta(hours=24)  # Durée de session par défaut
+        self.reset_tokens = {}  # reset_token -> {'user_id': str, 'expires_at': datetime}
+        self.reset_token_duration = timedelta(hours=1)  # Durée de validité du token de réinitialisation
     
     def create_session(self, user_id: str) -> str:
         """Crée une nouvelle session pour un utilisateur
@@ -67,6 +69,51 @@ class SessionManager:
         
         for sid in expired:
             del self.sessions[sid]
+    
+    def create_reset_token(self, user_id: str) -> str:
+        """Crée un token de réinitialisation de mot de passe
+        
+        Args:
+            user_id: ID de l'utilisateur
+            
+        Returns:
+            str: Token de réinitialisation
+        """
+        reset_token = str(uuid.uuid4())
+        expires_at = datetime.now() + self.reset_token_duration
+        
+        self.reset_tokens[reset_token] = {
+            'user_id': user_id,
+            'expires_at': expires_at
+        }
+        
+        return reset_token
+    
+    def get_user_id_from_reset_token(self, reset_token: str) -> Optional[str]:
+        """Récupère l'user_id depuis un token de réinitialisation
+        
+        Args:
+            reset_token: Token de réinitialisation
+            
+        Returns:
+            Optional[str]: user_id si le token est valide, None sinon
+        """
+        if reset_token not in self.reset_tokens:
+            return None
+        
+        token_data = self.reset_tokens[reset_token]
+        
+        # Vérifier si le token n'a pas expiré
+        if datetime.now() > token_data['expires_at']:
+            del self.reset_tokens[reset_token]
+            return None
+        
+        return token_data['user_id']
+    
+    def delete_reset_token(self, reset_token: str):
+        """Supprime un token de réinitialisation après utilisation"""
+        if reset_token in self.reset_tokens:
+            del self.reset_tokens[reset_token]
 
 
 class AuthManager:
@@ -182,3 +229,67 @@ class AuthManager:
     def logout(self, session_id: str):
         """Déconnecte un utilisateur"""
         self.session_manager.delete_session(session_id)
+    
+    def request_password_reset(self, email: str) -> Optional[str]:
+        """Demande une réinitialisation de mot de passe
+        
+        Args:
+            email: Email de l'utilisateur
+            
+        Returns:
+            Optional[str]: Token de réinitialisation si l'utilisateur existe, None sinon
+        """
+        from erp.utils.logger import get_logger
+        logger = get_logger(__name__)
+        
+        user = self.dm.get_user_by_email(email)
+        if user is None:
+            logger.warning(f"Demande de réinitialisation pour email inexistant: {email}")
+            # Pour des raisons de sécurité, on ne révèle pas si l'email existe ou non
+            return None
+        
+        if not user.active:
+            logger.warning(f"Demande de réinitialisation pour utilisateur inactif: {email}")
+            return None
+        
+        # Créer un token de réinitialisation
+        reset_token = self.session_manager.create_reset_token(user.id)
+        logger.info(f"Token de réinitialisation créé pour: {email}")
+        
+        return reset_token
+    
+    def reset_password(self, reset_token: str, new_password: str) -> bool:
+        """Réinitialise le mot de passe avec un token
+        
+        Args:
+            reset_token: Token de réinitialisation
+            new_password: Nouveau mot de passe
+            
+        Returns:
+            bool: True si succès, False sinon
+        """
+        from erp.utils.logger import get_logger
+        logger = get_logger(__name__)
+        
+        user_id = self.session_manager.get_user_id_from_reset_token(reset_token)
+        if user_id is None:
+            logger.warning("Token de réinitialisation invalide ou expiré")
+            return False
+        
+        user = self.dm.get_user_by_id(user_id)
+        if user is None:
+            logger.error(f"Utilisateur introuvable pour id: {user_id}")
+            return False
+        
+        # Mettre à jour le mot de passe
+        pwd_hash, salt = User.hash_password(new_password)
+        user.password_hash = pwd_hash
+        user.salt = salt
+        
+        self.dm.update_user(user)
+        
+        # Supprimer le token après utilisation
+        self.session_manager.delete_reset_token(reset_token)
+        
+        logger.info(f"Mot de passe réinitialisé pour utilisateur: {user.username}")
+        return True
