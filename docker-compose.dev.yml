@@ -1,0 +1,25 @@
+services:
+  erp-btp-dev:
+    build: .
+    container_name: erp-btp-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      # VOLUMES DE DÉVELOPPEMENT : Modifications en temps réel
+      - ./erp:/app/erp
+      - ./main.py:/app/main.py
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./static:/app/static
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ERP_STORAGE_BACKEND=postgres
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      # Mode développement : Rechargement automatique
+      - NICEGUI_RELOAD=true
+    restart: unless-stopped
+    command: python main.py
