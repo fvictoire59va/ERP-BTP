@@ -21,5 +21,12 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       # Mode développement : Rechargement automatique
       - NICEGUI_RELOAD=true
+      # Configuration email
+      - APP_URL=${APP_URL:-http://localhost:8080}
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
     restart: unless-stopped
     command: python main.py
