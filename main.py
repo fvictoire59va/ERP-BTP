@@ -323,7 +323,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-unrestricted_page_routes = {'/login', '/reset-password'}
+unrestricted_page_routes = {'/login', '/reset-password', '/forgot-password'}
 
 # Créer une instance globale de l'AuthManager (partagée entre toutes les pages)
 from erp.core.auth import AuthManager
@@ -331,6 +331,80 @@ from erp.core.storage_config import get_data_manager
 
 _data_manager = get_data_manager()
 _auth_manager = AuthManager(_data_manager)
+
+# Page de demande de réinitialisation de mot de passe
+@ui.page('/forgot-password')
+def forgot_password_page():
+    """Page de demande de réinitialisation de mot de passe"""
+    from erp.utils.logger import get_logger
+    logger = get_logger('main')
+
+    init_styles()
+
+    with ui.column().classes('w-full h-full items-center justify-center bg-gray-100'):
+        with ui.card().classes('w-96 p-6'):
+            ui.label('Mot de passe oublié ?').classes('text-2xl font-bold mb-4')
+            ui.label('Entrez votre adresse email pour recevoir un lien de réinitialisation.').classes('text-sm text-gray-600 mb-4')
+
+            email_input = ui.input('Email').classes('w-full')
+
+            error_label = ui.label('').classes('text-red-500 text-sm')
+            error_label.visible = False
+
+            success_label = ui.label('').classes('text-green-600 text-sm')
+            success_label.visible = False
+
+            def send_reset_email():
+                error_label.visible = False
+                success_label.visible = False
+
+                # Validation
+                if not email_input.value:
+                    error_label.text = 'Veuillez entrer votre adresse email'
+                    error_label.visible = True
+                    return
+
+                if '@' not in email_input.value or '.' not in email_input.value.split('@')[1]:
+                    error_label.text = 'Adresse email invalide'
+                    error_label.visible = True
+                    return
+
+                # Demande de réinitialisation
+                reset_token = _auth_manager.request_password_reset(email_input.value)
+
+                # Pour des raisons de sécurité, on affiche toujours un message de succès
+                if reset_token:
+                    user = _data_manager.get_user_by_email(email_input.value)
+                    if user:
+                        # Envoyer l'email de réinitialisation
+                        from erp.services.email_service import get_email_service
+                        email_service = get_email_service()
+                        email_sent = email_service.send_password_reset_email(email_input.value, reset_token, user.username)
+
+                        if email_sent:
+                            logger.info(f"Email de réinitialisation envoyé à {email_input.value}")
+                            success_label.text = 'Un email de réinitialisation a été envoyé. Vérifiez votre boîte de réception.'
+                        else:
+                            logger.warning(f"Échec de l'envoi de l'email à {email_input.value}, affichage du token pour développement")
+                            # En développement, si l'email ne peut pas être envoyé, afficher le lien
+                            import os
+                            app_url = os.getenv('APP_URL', 'http://localhost:8080')
+                            reset_link = f"{app_url}/reset-password?token={reset_token}"
+                            success_label.text = f'Email non configuré. Lien de réinitialisation : {reset_link}'
+
+                        success_label.visible = True
+
+                        # Retour au login après 5 secondes
+                        ui.timer(5.0, lambda: ui.navigate.to('/login'), once=True)
+                else:
+                    # Même si le token n'est pas créé, on affiche un message générique
+                    success_label.text = 'Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.'
+                    success_label.visible = True
+                    ui.timer(5.0, lambda: ui.navigate.to('/login'), once=True)
+
+            with ui.row().classes('w-full gap-2 mt-4'):
+                ui.button('Envoyer', on_click=send_reset_email).classes('flex-1')
+                ui.button('Retour', on_click=lambda: ui.navigate.to('/login'), color='secondary').classes('flex-1')
 
 # Page de réinitialisation de mot de passe avec token
 @ui.page('/reset-password')
@@ -443,7 +517,7 @@ def login_page(redirect_to: str = '/'):
             
             # Lien mot de passe oublié
             with ui.row().classes('w-full justify-center mt-4'):
-                ui.link('Mot de passe oublié ?', '/reset-password').classes('text-sm text-blue-600')
+                ui.link('Mot de passe oublié ?', '/forgot-password').classes('text-sm text-blue-600')
     
     return None
 
@@ -578,13 +652,16 @@ if __name__ in {"__main__", "__mp_main__"}:
         storage_secret_file.parent.mkdir(parents=True, exist_ok=True)
         storage_secret_file.write_text(storage_secret)
     
+    # Mode reload : True en dev (NICEGUI_RELOAD=true), False en prod
+    reload_mode = os.getenv('NICEGUI_RELOAD', 'false').lower() == 'true'
+    
     ui.run(
         title='ERP BTP',
         favicon=str(favicon_path) if favicon_path.exists() else None,
         dark=False,
         host='0.0.0.0',
         port=8080,
-        reload=not getattr(sys, 'frozen', False),  # Désactiver reload en mode exécutable
+        reload=reload_mode,
         show=True,
         storage_secret=storage_secret,
     )

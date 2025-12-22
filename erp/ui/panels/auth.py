@@ -51,8 +51,9 @@ class AuthPanel:
                         
                         ui.button('S\'inscrire', on_click=self._show_register, color='secondary').classes('flex-1')
                     
-                    # Lien mot de passe oublié
-                    ui.link('Mot de passe oublié ?', on_click=self._show_reset_password).classes('text-sm text-blue-600 cursor-pointer mt-2')
+                    # Lien mot de passe oublié (utiliser un label cliquable plutôt qu'un lien pour éviter la navigation)
+                    with ui.row().classes('w-full justify-center mt-2'):
+                        ui.label('Mot de passe oublié ?').classes('text-sm text-blue-600 cursor-pointer hover:underline').on('click', self._show_reset_password)
                 
                 # Register form (hidden by default)
                 with ui.column().classes('w-full gap-4') as self.register_container:
