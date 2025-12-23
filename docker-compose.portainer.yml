@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Base de données PostgreSQL pour le client
+  postgres:
+    image: postgres:15-alpine
+    container_name: ${CLIENT_NAME:-client}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-erp_btp}
+      POSTGRES_USER: ${POSTGRES_USER:-erp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - erp_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Application ERP BTP
+  erp-btp:
+    image: ghcr.io/${GITHUB_OWNER:-fvictoire59va}/erp-btp:latest
+    container_name: ${CLIENT_NAME:-client}-erp
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Configuration de base
+      - PYTHONUNBUFFERED=1
+      - CLIENT_NAME=${CLIENT_NAME:-client}
+      
+      # Configuration base de données
+      - ERP_STORAGE_BACKEND=postgres
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-erp_btp}
+      - POSTGRES_USER=${POSTGRES_USER:-erp_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      
+      # Configuration application
+      - APP_URL=${APP_URL:-http://localhost:8080}
+      - SECRET_KEY=${SECRET_KEY}
+      
+      # Configuration email (optionnel)
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@erp-btp.com}
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/logs
+      - app_storage:/app/.nicegui
+    networks:
+      - erp_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+    name: ${CLIENT_NAME:-client}_postgres_data
+  app_data:
+    name: ${CLIENT_NAME:-client}_app_data
+  app_logs:
+    name: ${CLIENT_NAME:-client}_app_logs
+  app_storage:
+    name: ${CLIENT_NAME:-client}_app_storage
+
+networks:
+  erp_network:
+    name: ${CLIENT_NAME:-client}_network
+    driver: bridge

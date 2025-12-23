@@ -87,6 +87,9 @@ README_POSTGRES.md
 # Development
 .env
 .env.local
+.env.client-*
+!.env.example
+!.env.portainer
 
 # PostgreSQL backups
 backups/
