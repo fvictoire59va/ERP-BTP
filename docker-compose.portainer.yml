@@ -22,7 +22,7 @@ services:
 
   # Application ERP BTP
   erp-btp:
-    image: ghcr.io/${GITHUB_OWNER:-fvictoire59va}/erp-btp:latest
+    image: ghcr.io/${GITHUB_OWNER:-fvictoire59va}/erp-btp:main-36113eb
     container_name: ${CLIENT_NAME:-client}-erp
     restart: unless-stopped
     ports:
