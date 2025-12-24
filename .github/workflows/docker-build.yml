@@ -53,7 +53,3 @@ jobs:
           docker stop pg-init-test
           docker rm pg-init-test
 
-      - name: Trigger Portainer webhook
-        if: ${{ secrets.PORTAINER_WEBHOOK_URL != '' }}
-        run: |
-          curl -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"
