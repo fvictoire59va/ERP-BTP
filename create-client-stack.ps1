@@ -11,6 +11,7 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$SecretKey,
     
+    [string]$InitialPassword = "",
     [string]$PortainerUrl = "https://localhost:9443",
     [string]$PortainerUser = "admin",
     [string]$PortainerPassword = "",
@@ -43,6 +44,13 @@ if ([string]::IsNullOrWhiteSpace($PortainerPassword)) {
     $securePassword = Read-Host "Mot de passe Portainer" -AsSecureString
     $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
     $PortainerPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+}
+
+# Générer un mot de passe initial temporaire si non fourni
+if ([string]::IsNullOrWhiteSpace($InitialPassword)) {
+    # Générer un mot de passe aléatoire de 12 caractères
+    $InitialPassword = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 12 | ForEach-Object {[char]$_})
+    Write-Host "Mot de passe temporaire généré automatiquement" -ForegroundColor Cyan
 }
 
 try {
@@ -100,6 +108,8 @@ try {
             @{ name = "POSTGRES_DB"; value = "erp_btp" }
             @{ name = "POSTGRES_USER"; value = "erp_user" }
             @{ name = "POSTGRES_PORT"; value = (5432 + $clientCount).ToString() }
+            @{ name = "INITIAL_USERNAME"; value = $ClientName }
+            @{ name = "INITIAL_PASSWORD"; value = $InitialPassword }
         )
     } | ConvertTo-Json -Depth 10
 
@@ -122,6 +132,11 @@ try {
     Write-Host "URL accès        : http://votre-serveur:$nextPort" -ForegroundColor White
     Write-Host "Base de données  : erp_btp" -ForegroundColor White
     Write-Host "Utilisateur DB   : erp_user" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Identifiants de connexion temporaires:" -ForegroundColor Yellow
+    Write-Host "  Nom d'utilisateur : $ClientName" -ForegroundColor Green
+    Write-Host "  Mot de passe      : $InitialPassword" -ForegroundColor Green
+    Write-Host "  (À changer lors de la première connexion)" -ForegroundColor Gray
     Write-Host "=================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "✓ Stack déployée avec succès!" -ForegroundColor Green
