@@ -45,6 +45,14 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Init PostgreSQL database (test)
+        run: |
+          docker run --name pg-init-test -e POSTGRES_PASSWORD=test -d -p 5433:5432 -v ${{ github.workspace }}/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql postgres:15-alpine
+          sleep 10
+          docker logs pg-init-test
+          docker stop pg-init-test
+          docker rm pg-init-test
+
       - name: Trigger Portainer webhook
         if: ${{ secrets.PORTAINER_WEBHOOK_URL != '' }}
         run: |
