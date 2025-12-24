@@ -89,7 +89,6 @@ README_POSTGRES.md
 .env.local
 .env.client-*
 !.env.example
-!.env.portainer
 
 # PostgreSQL backups
 backups/
@@ -125,3 +124,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Autoriser le suivi du script d'init PostgreSQL
+!init-db.sql
