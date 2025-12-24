@@ -87,7 +87,7 @@ Le workflow `.github/workflows/docker-build.yml` est déjà configuré dans votr
 ```bash
 git add .
 git commit -m "Configuration Portainer Stack"
-git push origin main
+git push origin main'
 ```
 
 **Option B : Déclencher manuellement**
