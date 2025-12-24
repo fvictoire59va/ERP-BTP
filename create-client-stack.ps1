@@ -63,7 +63,7 @@ try {
 
     $authResponse = Invoke-RestMethod -Uri "$PortainerUrl/api/auth" -Method Post -Body $authBody -ContentType "application/json"
     $token = $authResponse.jwt
-    Write-Host "✓ Authentification réussie" -ForegroundColor Green
+    Write-Host "Authentification reussie" -ForegroundColor Green
 
     # Headers pour les prochaines requêtes
     $headers = @{
@@ -81,13 +81,13 @@ try {
     # Calculer le prochain port disponible
     $nextPort = $BasePort + $clientCount
     
-    Write-Host "✓ Nombre de clients existants: $clientCount" -ForegroundColor Green
-    Write-Host "✓ Port attribué: $nextPort" -ForegroundColor Green
+    Write-Host "Nombre de clients existants: $clientCount" -ForegroundColor Green
+    Write-Host "Port attribue: $nextPort" -ForegroundColor Green
 
     # 3. Vérifier si la stack existe déjà
     $existingStack = $stacks | Where-Object { $_.Name -eq "client-$ClientName" }
     if ($existingStack) {
-        Write-Host "✗ Erreur: Une stack pour le client '$ClientName' existe déjà!" -ForegroundColor Red
+        Write-Host "Erreur: Une stack pour le client '$ClientName' existe deja!" -ForegroundColor Red
         exit 1
     }
 
@@ -113,13 +113,14 @@ try {
         )
     } | ConvertTo-Json -Depth 10
 
-    $createResponse = Invoke-RestMethod -Uri "$PortainerUrl/api/stacks?type=2&method=repository&endpointId=$EnvironmentId" `
+    $apiUrl = "$PortainerUrl/api/stacks?type=2&method=repository&endpointId=$EnvironmentId"
+    $createResponse = Invoke-RestMethod -Uri $apiUrl `
         -Method Post `
         -Body $stackBody `
         -ContentType "application/json" `
         -Headers $headers
 
-    Write-Host "✓ Stack créée avec succès (ID: $($createResponse.Id))" -ForegroundColor Green
+    Write-Host "Stack creee avec succes (ID: $($createResponse.Id))" -ForegroundColor Green
 
     # 5. Attendre que PostgreSQL soit prêt et créer l'utilisateur initial
     Write-Host "[4/6] Attente du démarrage de PostgreSQL..." -ForegroundColor Yellow
@@ -136,14 +137,14 @@ try {
             $checkResult = docker exec $containerName pg_isready -U erp_user -d erp_btp 2>&1
             if ($checkResult -match "accepting connections") {
                 $postgresReady = $true
-                Write-Host "✓ PostgreSQL est prêt" -ForegroundColor Green
+                Write-Host "PostgreSQL est pret" -ForegroundColor Green
             }
         } catch {
             # Container pas encore prêt
         }
         
         if ($retryCount -eq $maxRetries) {
-            Write-Host "✗ Timeout: PostgreSQL n'est pas prêt après $maxRetries tentatives" -ForegroundColor Red
+            Write-Host "Timeout: PostgreSQL n'est pas pret apres $maxRetries tentatives" -ForegroundColor Red
             Write-Host "  L'utilisateur devra être créé manuellement" -ForegroundColor Yellow
         }
     }
@@ -163,9 +164,9 @@ try {
             
             try {
                 $checkTable = docker exec $containerName psql -U erp_user -d erp_btp -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users');" 2>&1
-                if ($checkTable -match "t") {
+                if ($checkTable -match 't') {
                     $tableExists = $true
-                    Write-Host "✓ Table 'users' détectée" -ForegroundColor Green
+                    Write-Host "Table 'users' detectee" -ForegroundColor Green
                 } else {
                     Write-Host "  Attente de la création de la table 'users' ($tableRetries/$maxTableRetries)..." -ForegroundColor Gray
                 }
@@ -175,7 +176,7 @@ try {
         }
         
         if (!$tableExists) {
-            Write-Host "✗ La table 'users' n'existe pas encore" -ForegroundColor Yellow
+            Write-Host "La table 'users' n'existe pas encore" -ForegroundColor Yellow
             Write-Host "  L'utilisateur sera créé automatiquement au démarrage de l'application" -ForegroundColor Gray
         } else {
             Write-Host "[5/6] Création de l'utilisateur initial dans la base de données..." -ForegroundColor Yellow
@@ -193,10 +194,10 @@ ON CONFLICT (username) DO NOTHING;
             
             try {
                 docker exec $containerName psql -U erp_user -d erp_btp -c "$sqlInsert" 2>&1 | Out-Null
-                Write-Host "✓ Utilisateur initial créé dans la base de données" -ForegroundColor Green
+                Write-Host "Utilisateur initial cree dans la base de donnees" -ForegroundColor Green
                 Write-Host "  (Le mot de passe sera hashé au premier login)" -ForegroundColor Gray
             } catch {
-                Write-Host "⚠ Avertissement: Impossible de créer l'utilisateur automatiquement" -ForegroundColor Yellow
+                Write-Host "Avertissement: Impossible de creer l'utilisateur automatiquement" -ForegroundColor Yellow
                 Write-Host "  L'utilisateur sera créé au premier démarrage de l'application" -ForegroundColor Gray
             }
         }
@@ -220,12 +221,12 @@ ON CONFLICT (username) DO NOTHING;
     Write-Host "  (À changer lors de la première connexion)" -ForegroundColor Gray
     Write-Host "=================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "✓ Stack déployée avec succès!" -ForegroundColor Green
+    Write-Host "Stack deployee avec succes!" -ForegroundColor Green
     Write-Host "  Accédez à Portainer pour surveiller le déploiement." -ForegroundColor Gray
 
 } catch {
     Write-Host ""
-    Write-Host "✗ Erreur lors de la création de la stack:" -ForegroundColor Red
+    Write-Host "Erreur lors de la creation de la stack:" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
     if ($_.ErrorDetails.Message) {
         Write-Host $_.ErrorDetails.Message -ForegroundColor Red
