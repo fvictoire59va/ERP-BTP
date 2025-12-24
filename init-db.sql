@@ -1,1 +1,1 @@
-CREATE DATABASE erp_user;
+CREATE DATABASE erp_btp;
