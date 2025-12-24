@@ -12,7 +12,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     networks:
       - erp_network
     healthcheck:
@@ -48,6 +47,8 @@ services:
       # Configuration application
       - APP_URL=${APP_URL:-http://localhost:8080}
       - SECRET_KEY=${SECRET_KEY}
+      # Webhook Portainer (injecté via secret GitHub)
+      - PORTAINER_WEBHOOK_URL=${PORTAINER_WEBHOOK_URL}
       
       # Configuration email (optionnel)
       - SMTP_SERVER=${SMTP_SERVER:-}
