@@ -150,26 +150,55 @@ try {
 
     # 6. Créer l'utilisateur dans la base de données
     if ($postgresReady) {
-        Write-Host "[5/6] Création de l'utilisateur initial dans la base de données..." -ForegroundColor Yellow
+        Write-Host "[5/6] Vérification de la structure de la base de données..." -ForegroundColor Yellow
         
-        # Hash du mot de passe avec bcrypt (simulation simple pour le script)
-        # Note: L'application devra gérer le hash réel avec bcrypt
-        $hashedPassword = $InitialPassword  # Temporaire - sera hashé par l'application
+        # Attendre que la table users existe (créée par l'application au démarrage)
+        $tableExists = $false
+        $tableRetries = 0
+        $maxTableRetries = 20
         
-        # Créer l'utilisateur dans la table users
-        $sqlInsert = @"
+        while ($tableRetries -lt $maxTableRetries -and !$tableExists) {
+            Start-Sleep -Seconds 3
+            $tableRetries++
+            
+            try {
+                $checkTable = docker exec $containerName psql -U erp_user -d erp_btp -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users');" 2>&1
+                if ($checkTable -match "t") {
+                    $tableExists = $true
+                    Write-Host "✓ Table 'users' détectée" -ForegroundColor Green
+                } else {
+                    Write-Host "  Attente de la création de la table 'users' ($tableRetries/$maxTableRetries)..." -ForegroundColor Gray
+                }
+            } catch {
+                Write-Host "  Vérification de la table en cours ($tableRetries/$maxTableRetries)..." -ForegroundColor Gray
+            }
+        }
+        
+        if (!$tableExists) {
+            Write-Host "✗ La table 'users' n'existe pas encore" -ForegroundColor Yellow
+            Write-Host "  L'utilisateur sera créé automatiquement au démarrage de l'application" -ForegroundColor Gray
+        } else {
+            Write-Host "[5/6] Création de l'utilisateur initial dans la base de données..." -ForegroundColor Yellow
+            
+            # Hash du mot de passe avec bcrypt (simulation simple pour le script)
+            # Note: L'application devra gérer le hash réel avec bcrypt
+            $hashedPassword = $InitialPassword  # Temporaire - sera hashé par l'application
+            
+            # Créer l'utilisateur dans la table users
+            $sqlInsert = @"
 INSERT INTO users (username, password, email, nom_complet, role, organisation, actif, created_at, updated_at)
 VALUES ('$ClientName', '$hashedPassword', '$ClientName@temp.local', '$ClientName', 'admin', '$ClientName', true, NOW(), NOW())
 ON CONFLICT (username) DO NOTHING;
 "@
-        
-        try {
-            docker exec $containerName psql -U erp_user -d erp_btp -c "$sqlInsert" 2>&1 | Out-Null
-            Write-Host "✓ Utilisateur initial créé dans la base de données" -ForegroundColor Green
-            Write-Host "  (Le mot de passe sera hashé au premier login)" -ForegroundColor Gray
-        } catch {
-            Write-Host "⚠ Avertissement: Impossible de créer l'utilisateur automatiquement" -ForegroundColor Yellow
-            Write-Host "  L'utilisateur sera créé au premier démarrage de l'application" -ForegroundColor Gray
+            
+            try {
+                docker exec $containerName psql -U erp_user -d erp_btp -c "$sqlInsert" 2>&1 | Out-Null
+                Write-Host "✓ Utilisateur initial créé dans la base de données" -ForegroundColor Green
+                Write-Host "  (Le mot de passe sera hashé au premier login)" -ForegroundColor Gray
+            } catch {
+                Write-Host "⚠ Avertissement: Impossible de créer l'utilisateur automatiquement" -ForegroundColor Yellow
+                Write-Host "  L'utilisateur sera créé au premier démarrage de l'application" -ForegroundColor Gray
+            }
         }
     }
 
