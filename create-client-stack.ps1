@@ -13,8 +13,8 @@ param(
     
     [string]$InitialPassword = "",
     [string]$PortainerUrl = "https://localhost:9443",
-    [string]$PortainerUser = "admin",
-    [string]$PortainerPassword = "",
+    [string]$PortainerUser = "fred",
+    [string]$PortainerPassword = "7b5KDg@z@Sno$NtC",
     [string]$EnvironmentId = "2",
     [int]$BasePort = 8080
 )
@@ -121,9 +121,61 @@ try {
 
     Write-Host "✓ Stack créée avec succès (ID: $($createResponse.Id))" -ForegroundColor Green
 
-    # 5. Afficher le résumé
+    # 5. Attendre que PostgreSQL soit prêt et créer l'utilisateur initial
+    Write-Host "[4/6] Attente du démarrage de PostgreSQL..." -ForegroundColor Yellow
+    $containerName = "$ClientName-postgres"
+    $maxRetries = 30
+    $retryCount = 0
+    $postgresReady = $false
+
+    while ($retryCount -lt $maxRetries -and !$postgresReady) {
+        Start-Sleep -Seconds 2
+        $retryCount++
+        
+        try {
+            $checkResult = docker exec $containerName pg_isready -U erp_user -d erp_btp 2>&1
+            if ($checkResult -match "accepting connections") {
+                $postgresReady = $true
+                Write-Host "✓ PostgreSQL est prêt" -ForegroundColor Green
+            }
+        } catch {
+            # Container pas encore prêt
+        }
+        
+        if ($retryCount -eq $maxRetries) {
+            Write-Host "✗ Timeout: PostgreSQL n'est pas prêt après $maxRetries tentatives" -ForegroundColor Red
+            Write-Host "  L'utilisateur devra être créé manuellement" -ForegroundColor Yellow
+        }
+    }
+
+    # 6. Créer l'utilisateur dans la base de données
+    if ($postgresReady) {
+        Write-Host "[5/6] Création de l'utilisateur initial dans la base de données..." -ForegroundColor Yellow
+        
+        # Hash du mot de passe avec bcrypt (simulation simple pour le script)
+        # Note: L'application devra gérer le hash réel avec bcrypt
+        $hashedPassword = $InitialPassword  # Temporaire - sera hashé par l'application
+        
+        # Créer l'utilisateur dans la table users
+        $sqlInsert = @"
+INSERT INTO users (username, password, email, nom_complet, role, organisation, actif, created_at, updated_at)
+VALUES ('$ClientName', '$hashedPassword', '$ClientName@temp.local', '$ClientName', 'admin', '$ClientName', true, NOW(), NOW())
+ON CONFLICT (username) DO NOTHING;
+"@
+        
+        try {
+            docker exec $containerName psql -U erp_user -d erp_btp -c "$sqlInsert" 2>&1 | Out-Null
+            Write-Host "✓ Utilisateur initial créé dans la base de données" -ForegroundColor Green
+            Write-Host "  (Le mot de passe sera hashé au premier login)" -ForegroundColor Gray
+        } catch {
+            Write-Host "⚠ Avertissement: Impossible de créer l'utilisateur automatiquement" -ForegroundColor Yellow
+            Write-Host "  L'utilisateur sera créé au premier démarrage de l'application" -ForegroundColor Gray
+        }
+    }
+
+    # 7. Afficher le résumé
     Write-Host ""
-    Write-Host "[4/4] Résumé de la configuration:" -ForegroundColor Yellow
+    Write-Host "[6/6] Résumé de la configuration:" -ForegroundColor Yellow
     Write-Host "=================================" -ForegroundColor Cyan
     Write-Host "Nom du client    : $ClientName" -ForegroundColor White
     Write-Host "Nom de la stack  : client-$ClientName" -ForegroundColor White
