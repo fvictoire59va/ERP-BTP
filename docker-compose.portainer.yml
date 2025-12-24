@@ -52,6 +52,10 @@ services:
       # Webhook Portainer (injecté via secret GitHub)
       - PORTAINER_WEBHOOK_URL=${PORTAINER_WEBHOOK_URL}
       
+      # Utilisateur initial (création automatique au démarrage)
+      - INITIAL_USERNAME=${INITIAL_USERNAME:-admin}
+      - INITIAL_PASSWORD=${INITIAL_PASSWORD:-}
+      
       # Configuration email (optionnel)
       - SMTP_SERVER=${SMTP_SERVER:-}
       - SMTP_PORT=${SMTP_PORT:-587}
