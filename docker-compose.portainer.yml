@@ -6,6 +6,8 @@ services:
     image: postgres:15-alpine
     container_name: ${CLIENT_NAME:-client}-postgres
     restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-erp_btp}
       POSTGRES_USER: ${POSTGRES_USER:-erp_user}
