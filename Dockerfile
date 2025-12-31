@@ -8,8 +8,11 @@ ENV PYTHONUNBUFFERED=1 \
 # 3. Dossier de travail dans le conteneur
 WORKDIR /app
 
-# 4. Installer curl pour le healthcheck
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# 4. Installer curl pour le healthcheck et postgresql-client pour les outils psql
+RUN apt-get update && apt-get install -y \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 # 5. Copier les dépendances et installer
 COPY requirements.txt .
