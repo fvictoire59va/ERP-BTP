@@ -323,7 +323,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-unrestricted_page_routes = {'/login', '/reset-password', '/forgot-password'}
+unrestricted_page_routes = {'/login', '/reset-password', '/forgot-password', '/welcome'}
 
 # Créer une instance globale de l'AuthManager (partagée entre toutes les pages)
 from erp.core.auth import AuthManager
@@ -331,6 +331,143 @@ from erp.core.storage_config import get_data_manager
 
 _data_manager = get_data_manager()
 _auth_manager = AuthManager(_data_manager)
+
+# Initialiser un utilisateur admin si aucun utilisateur n'existe
+def _init_default_admin():
+    """Crée un utilisateur admin par défaut si aucun utilisateur n'existe"""
+    from erp.utils.logger import get_logger
+    from erp.core.models import User
+    import uuid
+    
+    logger = get_logger('main')
+    
+    # Vérifier s'il existe déjà des utilisateurs
+    try:
+        users = _data_manager.users
+        if len(users) > 0:
+            logger.info(f"{len(users)} utilisateur(s) déjà existant(s) dans la base")
+            return
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification des utilisateurs: {e}")
+        return
+    
+    # Récupérer les variables d'environnement
+    initial_username = os.getenv('INITIAL_USERNAME', 'admin')
+    initial_password = os.getenv('INITIAL_PASSWORD', 'admin123')
+    
+    logger.info(f"Aucun utilisateur trouvé, création de l'admin par défaut: {initial_username}")
+    
+    try:
+        # Créer le hash du mot de passe
+        password_hash, salt = User.hash_password(initial_password)
+        
+        # Créer l'utilisateur admin
+        admin_user = User(
+            id=str(uuid.uuid4()),
+            username=initial_username,
+            email=f"{initial_username}@erp-btp.local",
+            password_hash=password_hash,
+            salt=salt,
+            nom="Administrateur",
+            prenom="Système",
+            role="admin",
+            active=True
+        )
+        
+        # Ajouter à la base de données
+        _data_manager.add_user(admin_user)
+        
+        app_url = os.getenv('APP_URL', 'http://localhost:8080')
+        
+        logger.info("=" * 70)
+        logger.info("🎉 FÉLICITATIONS ! Votre ERP BTP est configuré avec succès !")
+        logger.info("=" * 70)
+        logger.info(f"")
+        logger.info(f"  ✓ Utilisateur admin créé")
+        logger.info(f"")
+        logger.info(f"  📋 INFORMATIONS DE CONNEXION:")
+        logger.info(f"  ├─ URL d'accès   : {app_url}/welcome")
+        logger.info(f"  ├─ Nom d'utilisateur : {initial_username}")
+        logger.info(f"  └─ Mot de passe      : {initial_password}")
+        logger.info(f"")
+        logger.info(f"  ⚠️  IMPORTANT: Changez ce mot de passe après la première connexion !")
+        logger.info(f"")
+        logger.info("=" * 70)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la création de l'utilisateur admin: {e}", exc_info=True)
+
+# Initialiser l'admin au démarrage
+_init_default_admin()
+
+# Page de bienvenue (première installation)
+@ui.page('/welcome')
+def welcome_page():
+    """Page de bienvenue affichant les identifiants du premier utilisateur"""
+    from erp.utils.logger import get_logger
+    logger = get_logger('main')
+    
+    init_styles()
+    
+    initial_username = os.getenv('INITIAL_USERNAME', 'admin')
+    initial_password = os.getenv('INITIAL_PASSWORD', 'admin123')
+    app_url = os.getenv('APP_URL', 'http://localhost:8080')
+    
+    with ui.column().classes('w-full h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100'):
+        with ui.card().classes('w-[600px] p-8 shadow-xl'):
+            # Icône de succès
+            with ui.row().classes('w-full justify-center mb-4'):
+                ui.html('<div style="font-size: 64px;">🎉</div>')
+            
+            ui.label('Félicitations !').classes('text-3xl font-bold text-center mb-2 text-green-600')
+            ui.label('Votre ERP BTP est prêt').classes('text-xl text-center mb-6 text-gray-700')
+            
+            # Informations de connexion
+            with ui.card().classes('w-full p-6 bg-blue-50 border-2 border-blue-200 mb-6'):
+                ui.label('Informations de connexion').classes('text-lg font-semibold mb-4 text-blue-800')
+                
+                with ui.row().classes('w-full items-center gap-4 mb-3'):
+                    ui.label('🌐 URL :').classes('font-semibold text-gray-700 w-32')
+                    url_input = ui.input(value=app_url).classes('flex-1')
+                    url_input.props('readonly')
+                
+                with ui.row().classes('w-full items-center gap-4 mb-3'):
+                    ui.label('👤 Nom d\'utilisateur :').classes('font-semibold text-gray-700 w-32')
+                    user_input = ui.input(value=initial_username).classes('flex-1')
+                    user_input.props('readonly')
+                
+                with ui.row().classes('w-full items-center gap-4'):
+                    ui.label('🔑 Mot de passe :').classes('font-semibold text-gray-700 w-32')
+                    pwd_input = ui.input(value=initial_password, password=True, password_toggle_button=True).classes('flex-1')
+                    pwd_input.props('readonly')
+            
+            # Avertissement de sécurité
+            with ui.card().classes('w-full p-4 bg-yellow-50 border-2 border-yellow-300 mb-6'):
+                ui.html('<div class="flex items-start gap-3"><div style="font-size: 24px;">⚠️</div><div>')
+                ui.label('Important : Changez ce mot de passe dès la première connexion !').classes('font-semibold text-yellow-800')
+                ui.label('Pour des raisons de sécurité, modifiez le mot de passe par défaut dans les paramètres de votre compte.').classes('text-sm text-yellow-700 mt-1')
+                ui.html('</div></div>')
+            
+            # Bouton de connexion
+            ui.button('Se connecter', on_click=lambda: ui.navigate.to('/login')).classes('w-full').style(
+                'background-color: #4CAF50; color: white; padding: 12px; font-size: 16px; font-weight: bold;'
+            )
+            
+            # Instructions supplémentaires
+            with ui.expansion('📖 Premiers pas', icon='help').classes('w-full mt-4'):
+                ui.markdown('''
+                **Que faire ensuite ?**
+                
+                1. Connectez-vous avec les identifiants ci-dessus
+                2. Accédez aux **Paramètres** pour :
+                   - Changer votre mot de passe
+                   - Configurer les informations de votre entreprise
+                   - Personnaliser l'application
+                3. Créez vos premiers clients, devis et projets
+                
+                **Besoin d'aide ?**  
+                Consultez la documentation ou contactez le support technique.
+                ''')
 
 # Page de demande de réinitialisation de mot de passe
 @ui.page('/forgot-password')
