@@ -24,6 +24,7 @@ services:
   erp-btp:
     image: ghcr.io/fvictoire59va/erp-btp:latest
     pull_policy: always
+    x-portainer-pull-image: "true"
     container_name: client_${CLIENT_ID}-erp
     restart: unless-stopped
     ports:
