@@ -46,7 +46,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       
       # Configuration application
-      - APP_URL=${APP_URL:-http://localhost:8080}
+      - APP_URL=${APP_URL}
       - SECRET_KEY=${SECRET_KEY}
       
       # Webhook Portainer (injecté via secret GitHub)
