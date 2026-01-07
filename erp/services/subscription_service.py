@@ -22,11 +22,18 @@ class SubscriptionService:
         self.user = os.getenv('SUBSCRIPTION_DB_USER', 'postgres')
         self.password = os.getenv('SUBSCRIPTION_DB_PASSWORD', '')
         
+        # Log de configuration pour le débogage
+        logger.debug(
+            f"Configuration d'abonnement: host={self.host}, port={self.port}, "
+            f"db={self.database}, user={self.user}, password={'*' * len(self.password) if self.password else '(vide)'}"
+        )
+        
         # Vérifier que le mot de passe est configuré
         if not self.password:
             logger.warning(
-                "⚠️ SUBSCRIPTION_DB_PASSWORD non configuré! "
-                "Vérifiez que la variable d'environnement SUBSCRIPTION_DB_PASSWORD est définie."
+                "⚠️ SUBSCRIPTION_DB_PASSWORD non configuré ou vide! "
+                "Vérifiez que la variable d'environnement SUBSCRIPTION_DB_PASSWORD est définie. "
+                "Les vérifications d'abonnement échoueront."
             )
         
     def _get_connection(self):
@@ -42,7 +49,11 @@ class SubscriptionService:
             )
             return conn
         except psycopg2.Error as e:
-            logger.error(f"Erreur de connexion à la base des abonnements: {e}", exc_info=True)
+            logger.error(
+                f"Erreur de connexion à la base des abonnements "
+                f"({self.user}@{self.host}:{self.port}/{self.database}): {e}", 
+                exc_info=True
+            )
             raise
     
     def check_subscription(self, client_id: str) -> Tuple[bool, Optional[str]]:
