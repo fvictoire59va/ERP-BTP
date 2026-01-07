@@ -22,6 +22,13 @@ class SubscriptionService:
         self.user = os.getenv('SUBSCRIPTION_DB_USER', 'postgres')
         self.password = os.getenv('SUBSCRIPTION_DB_PASSWORD', '')
         
+        # Vérifier que le mot de passe est configuré
+        if not self.password:
+            logger.warning(
+                "⚠️ SUBSCRIPTION_DB_PASSWORD non configuré! "
+                "Vérifiez que la variable d'environnement SUBSCRIPTION_DB_PASSWORD est définie."
+            )
+        
     def _get_connection(self):
         """Crée et retourne une connexion à la base de données des abonnements"""
         try:

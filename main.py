@@ -628,7 +628,14 @@ def login_page(redirect_to: str = '/'):
         logger.info(f"Authentication result: {result is not None}")
         
         if result:
-            user, session_id = result
+            user, session_id, error_message = result
+            
+            # Vérifier si l'abonnement est expiré ou suspendu
+            if error_message:
+                logger.warning(f"✗ LOGIN BLOCKED for {username.value}: {error_message}")
+                ui.notify(error_message, color='negative')
+                return
+            
             logger.info(f"✓ USER LOGGED IN: {user.username} (session: {session_id})")
             
             nicegui_app.storage.user.update({
