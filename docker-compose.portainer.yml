@@ -45,6 +45,13 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-erp_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       
+      # Configuration base de données des abonnements (externe)
+      - SUBSCRIPTION_DB_HOST=${SUBSCRIPTION_DB_HOST:-176.131.66.167}
+      - SUBSCRIPTION_DB_PORT=${SUBSCRIPTION_DB_PORT:-5433}
+      - SUBSCRIPTION_DB_NAME=${SUBSCRIPTION_DB_NAME:-erpbtp_clients}
+      - SUBSCRIPTION_DB_USER=${SUBSCRIPTION_DB_USER:-postgres}
+      - SUBSCRIPTION_DB_PASSWORD=${SUBSCRIPTION_DB_PASSWORD}
+      
       # Configuration application
       - APP_URL=${APP_URL}
       - SECRET_KEY=${SECRET_KEY}
