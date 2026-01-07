@@ -145,7 +145,16 @@ class AuthPanel:
             result = self.auth_manager.authenticate(username, password)
             
             if result:
-                user, session_id = result
+                user, session_id, error_message = result
+                
+                # Vérifier si l'abonnement est expiré
+                if error_message:
+                    logger.warning(f"Login blocked for {username}: {error_message}")
+                    self.error_label.text = error_message
+                    self.error_label.visible = True
+                    return
+                
+                # Connexion réussie
                 logger.info(f"User logged in: {username}")
                 self.on_login_success(session_id, username)
             else:
@@ -193,7 +202,16 @@ class AuthPanel:
             )
             
             if result:
-                user, session_id = result
+                user, session_id, error_message = result
+                
+                # Vérifier si l'abonnement est expiré (peu probable lors de l'inscription, mais par sécurité)
+                if error_message:
+                    logger.warning(f"Registration blocked for {username}: {error_message}")
+                    self.register_error_label.text = error_message
+                    self.register_error_label.visible = True
+                    return
+                
+                # Inscription réussie
                 logger.info(f"User registered: {username}")
                 self.on_login_success(session_id, username)
             else:

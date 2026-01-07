@@ -123,7 +123,7 @@ class AuthManager:
         self.dm = data_manager
         self.session_manager = SessionManager()
     
-    def authenticate(self, username: str, password: str) -> Optional[tuple[User, str]]:
+    def authenticate(self, username: str, password: str) -> Optional[tuple[User, str, Optional[str]]]:
         """Authentifie un utilisateur
         
         Args:
@@ -131,7 +131,9 @@ class AuthManager:
             password: Mot de passe
             
         Returns:
-            Optional[tuple[User, str]]: (User, session_id) si succès, None sinon
+            Optional[tuple[User, str, Optional[str]]]: (User, session_id, error_message) si succès, 
+                                                        None si échec d'authentification
+                                                        error_message contient le message d'erreur si abonnement expiré
         """
         from erp.utils.logger import get_logger
         logger = get_logger(__name__)
@@ -160,6 +162,19 @@ class AuthManager:
             logger.warning(f"Authentification échouée: mot de passe incorrect pour '{username}'")
             return None
         
+        # Vérification de l'abonnement
+        from erp.services.subscription_service import get_subscription_service
+        subscription_service = get_subscription_service()
+        
+        # Utiliser l'email ou le username comme identifiant client
+        client_identifier = user.email if user.email else user.username
+        is_active, error_message = subscription_service.check_subscription(client_identifier)
+        
+        if not is_active:
+            logger.warning(f"Authentification refusée: abonnement inactif pour '{username}'")
+            # Retourner l'utilisateur, un session_id vide et le message d'erreur
+            return user, "", error_message
+        
         # Mise à jour de la dernière connexion
         user.update_last_login()
         self.dm.update_user(user)
@@ -167,10 +182,10 @@ class AuthManager:
         # Créer une session
         session_id = self.session_manager.create_session(user.id)
         
-        return user, session_id
+        return user, session_id, None
     
     def register(self, username: str, email: str, password: str, 
-                 nom: str = "", prenom: str = "") -> Optional[tuple[User, str]]:
+                 nom: str = "", prenom: str = "") -> Optional[tuple[User, str, Optional[str]]]:
         """Inscrit un nouvel utilisateur
         
         Args:
@@ -181,7 +196,7 @@ class AuthManager:
             prenom: Prénom
             
         Returns:
-            Optional[tuple[User, str]]: (User, session_id) si succès, None sinon
+            Optional[tuple[User, str, Optional[str]]]: (User, session_id, error_message) si succès, None sinon
         """
         # Vérifier si l'utilisateur existe déjà
         if self.dm.get_user_by_username(username) is not None:
@@ -206,10 +221,23 @@ class AuthManager:
         
         self.dm.add_user(user)
         
+        # Vérification de l'abonnement (pour les nouveaux comptes aussi)
+        from erp.services.subscription_service import get_subscription_service
+        subscription_service = get_subscription_service()
+        
+        client_identifier = email if email else username
+        is_active, error_message = subscription_service.check_subscription(client_identifier)
+        
+        if not is_active:
+            from erp.utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.warning(f"Registration: abonnement inactif pour '{username}'")
+            return user, "", error_message
+        
         # Créer une session
         session_id = self.session_manager.create_session(user.id)
         
-        return user, session_id
+        return user, session_id, None
     
     def get_current_user(self, session_id: str) -> Optional[User]:
         """Récupère l'utilisateur courant depuis le session_id
