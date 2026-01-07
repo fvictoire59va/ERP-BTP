@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from contextlib import contextmanager
+from urllib.parse import quote
 import os
 from erp.utils.logger import get_logger
 
@@ -35,8 +36,12 @@ class DatabaseManager:
         """Initialise la connexion à la base de données"""
         try:
             # Créer l'URL de connexion PostgreSQL
+            # Important: encoder les caractères spéciaux du mot de passe et du user
+            encoded_user = quote(DB_CONFIG['user'], safe='')
+            encoded_password = quote(DB_CONFIG['password'], safe='')
+            
             db_url = (
-                f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}"
+                f"postgresql://{encoded_user}:{encoded_password}"
                 f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
             )
             
