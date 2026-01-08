@@ -607,6 +607,7 @@ class User:
     nom: str = ""
     prenom: str = ""
     role: str = "user"  # user, admin
+    client_id: Optional[int] = None  # Référence au client dans la table abonnements
     active: bool = True
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     last_login: Optional[str] = None
@@ -646,6 +647,7 @@ class User:
             'nom': self.nom,
             'prenom': self.prenom,
             'role': self.role,
+            'client_id': self.client_id,
             'active': self.active,
             'created_at': self.created_at,
             'last_login': self.last_login,
@@ -664,6 +666,7 @@ class User:
             nom=data.get('nom', ''),
             prenom=data.get('prenom', ''),
             role=data.get('role', 'user'),
+            client_id=data.get('client_id'),
             active=data.get('active', True),
             created_at=data.get('created_at', datetime.now().isoformat()),
             last_login=data.get('last_login'),

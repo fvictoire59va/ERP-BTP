@@ -832,6 +832,7 @@ class DataManagerPostgres:
                     'nom': u.nom or "",
                     'prenom': u.prenom or "",
                     'email': u.email or "",
+                    'client_id': u.client_id,
                     'actif': u.actif,
                     'date_creation': u.date_creation or "",
                     'derniere_connexion': u.derniere_connexion or ""
@@ -853,6 +854,7 @@ class DataManagerPostgres:
                     'nom': u.nom or "",
                     'prenom': u.prenom or "",
                     'email': u.email or "",
+                    'client_id': u.client_id,
                     'actif': u.actif,
                     'date_creation': u.date_creation or "",
                     'derniere_connexion': u.derniere_connexion or ""
@@ -878,6 +880,7 @@ class DataManagerPostgres:
                 nom=user_data.get('nom', ''),
                 prenom=user_data.get('prenom', ''),
                 email=user_data.get('email', ''),
+                client_id=user_data.get('client_id'),
                 actif=user_data.get('actif', True),
                 date_creation=user_data.get('date_creation', ''),
                 derniere_connexion=user_data.get('derniere_connexion', '')
@@ -898,6 +901,7 @@ class DataManagerPostgres:
                 u.nom = user_data.get('nom', '')
                 u.prenom = user_data.get('prenom', '')
                 u.email = user_data.get('email', '')
+                u.client_id = user_data.get('client_id')
                 u.actif = user_data.get('actif', True)
                 u.date_creation = user_data.get('date_creation', '')
                 u.derniere_connexion = user_data.get('derniere_connexion', '')

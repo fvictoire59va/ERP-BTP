@@ -166,14 +166,16 @@ class AuthManager:
         from erp.services.subscription_service import get_subscription_service
         subscription_service = get_subscription_service()
         
-        # Utiliser l'email ou le username comme identifiant client
-        client_identifier = user.email if user.email else user.username
-        is_active, error_message = subscription_service.check_subscription(client_identifier)
-        
-        if not is_active:
-            logger.warning(f"Authentification refusée: abonnement inactif pour '{username}'")
-            # Retourner l'utilisateur, un session_id vide et le message d'erreur
-            return user, "", error_message
+        # Vérifier l'abonnement si le client_id est défini
+        if user.client_id:
+            is_active, error_message = subscription_service.check_subscription(user.client_id)
+            
+            if not is_active:
+                logger.warning(f"Authentification refusée: abonnement inactif pour '{username}' (client_id: {user.client_id})")
+                # Retourner l'utilisateur, un session_id vide et le message d'erreur
+                return user, "", error_message
+        else:
+            logger.info(f"Aucun client_id pour '{username}', vérification d'abonnement ignorée")
         
         # Mise à jour de la dernière connexion
         user.update_last_login()
@@ -225,14 +227,19 @@ class AuthManager:
         from erp.services.subscription_service import get_subscription_service
         subscription_service = get_subscription_service()
         
-        client_identifier = email if email else username
-        is_active, error_message = subscription_service.check_subscription(client_identifier)
-        
-        if not is_active:
+        # Vérifier l'abonnement si le client_id est défini
+        if user.client_id:
+            is_active, error_message = subscription_service.check_subscription(user.client_id)
+            
+            if not is_active:
+                from erp.utils.logger import get_logger
+                logger = get_logger(__name__)
+                logger.warning(f"Registration: abonnement inactif pour '{username}' (client_id: {user.client_id})")
+                return user, "", error_message
+        else:
             from erp.utils.logger import get_logger
             logger = get_logger(__name__)
-            logger.warning(f"Registration: abonnement inactif pour '{username}'")
-            return user, "", error_message
+            logger.info(f"Aucun client_id pour '{username}', vérification d'abonnement ignorée")
         
         # Créer une session
         session_id = self.session_manager.create_session(user.id)

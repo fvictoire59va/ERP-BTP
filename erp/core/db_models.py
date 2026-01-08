@@ -144,6 +144,7 @@ class UserModel(Base):
     nom = Column(String(100))
     prenom = Column(String(100))
     email = Column(String(100))
+    client_id = Column(Integer, nullable=True)  # Référence au client dans la table abonnements
     actif = Column(Boolean, default=True)
     date_creation = Column(String(10))
     derniere_connexion = Column(String(19))  # Format: YYYY-MM-DD HH:MM:SS
