@@ -166,16 +166,29 @@ class AuthManager:
         from erp.services.subscription_service import get_subscription_service
         subscription_service = get_subscription_service()
         
+        # Si pas de client_id, chercher dans la base des abonnements
+        client_id_to_check = user.client_id
+        if not client_id_to_check:
+            # Essayer de trouver le client par email ou username
+            email_to_search = user.email if user.email else username
+            client_id_to_check = subscription_service.get_client_id_by_email(email_to_search)
+            
+            if client_id_to_check:
+                # Mettre à jour l'utilisateur avec le client_id trouvé
+                user.client_id = client_id_to_check
+                self.dm.update_user(user)
+                logger.info(f"Client_id trouvé et mis à jour pour '{username}': {client_id_to_check}")
+        
         # Vérifier l'abonnement si le client_id est défini
-        if user.client_id:
-            is_active, error_message = subscription_service.check_subscription(user.client_id)
+        if client_id_to_check:
+            is_active, error_message = subscription_service.check_subscription(client_id_to_check)
             
             if not is_active:
-                logger.warning(f"Authentification refusée: abonnement inactif pour '{username}' (client_id: {user.client_id})")
+                logger.warning(f"Authentification refusée: abonnement inactif pour '{username}' (client_id: {client_id_to_check})")
                 # Retourner l'utilisateur, un session_id vide et le message d'erreur
                 return user, "", error_message
         else:
-            logger.info(f"Aucun client_id pour '{username}', vérification d'abonnement ignorée")
+            logger.warning(f"Aucun client_id trouvé pour '{username}', vérification d'abonnement ignorée")
         
         # Mise à jour de la dernière connexion
         user.update_last_login()
@@ -227,19 +240,34 @@ class AuthManager:
         from erp.services.subscription_service import get_subscription_service
         subscription_service = get_subscription_service()
         
+        # Si pas de client_id, chercher dans la base des abonnements
+        client_id_to_check = user.client_id
+        if not client_id_to_check:
+            # Essayer de trouver le client par email ou username
+            email_to_search = email if email else username
+            client_id_to_check = subscription_service.get_client_id_by_email(email_to_search)
+            
+            if client_id_to_check:
+                # Mettre à jour l'utilisateur avec le client_id trouvé
+                user.client_id = client_id_to_check
+                self.dm.update_user(user)
+                from erp.utils.logger import get_logger
+                logger = get_logger(__name__)
+                logger.info(f"Client_id trouvé et mis à jour pour '{username}': {client_id_to_check}")
+        
         # Vérifier l'abonnement si le client_id est défini
-        if user.client_id:
-            is_active, error_message = subscription_service.check_subscription(user.client_id)
+        if client_id_to_check:
+            is_active, error_message = subscription_service.check_subscription(client_id_to_check)
             
             if not is_active:
                 from erp.utils.logger import get_logger
                 logger = get_logger(__name__)
-                logger.warning(f"Registration: abonnement inactif pour '{username}' (client_id: {user.client_id})")
+                logger.warning(f"Registration: abonnement inactif pour '{username}' (client_id: {client_id_to_check})")
                 return user, "", error_message
         else:
             from erp.utils.logger import get_logger
             logger = get_logger(__name__)
-            logger.info(f"Aucun client_id pour '{username}', vérification d'abonnement ignorée")
+            logger.warning(f"Aucun client_id trouvé pour '{username}', vérification d'abonnement ignorée")
         
         # Créer une session
         session_id = self.session_manager.create_session(user.id)

@@ -234,6 +234,53 @@ class SubscriptionService:
                 cursor.close()
             if conn:
                 conn.close()
+    
+    def get_client_id_by_email(self, email: str) -> Optional[int]:
+        """
+        Récupère le client_id en fonction de l'email
+        
+        Args:
+            email: Email du client
+            
+        Returns:
+            Optional[int]: Le client_id si trouvé, None sinon
+        """
+        conn = None
+        cursor = None
+        
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Chercher le client par email
+            query = """
+                SELECT id
+                FROM abonnements
+                WHERE client_id IN (
+                    SELECT id FROM clients WHERE email = %s
+                )
+                LIMIT 1
+            """
+            
+            cursor.execute(query, (email,))
+            result = cursor.fetchone()
+            
+            if result:
+                logger.debug(f"Client_id trouvé pour email '{email}': {result['id']}")
+                return result['id']
+            
+            logger.debug(f"Aucun client_id trouvé pour email '{email}'")
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Erreur lors de la recherche du client par email: {e}")
+            return None
+            
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
 
 # Instance singleton du service
