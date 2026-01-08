@@ -56,18 +56,26 @@ class SubscriptionService:
             )
             raise
     
-    def check_subscription(self, client_id: str) -> Tuple[bool, Optional[str]]:
+    def check_subscription(self, client_id: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """
         Vérifie si l'abonnement du client est actif
         
         Args:
-            client_id: Identifiant du client (username ou email)
+            client_id: Identifiant du client (optionnel, utilise CLIENT_ID de l'environnement par défaut)
             
         Returns:
             Tuple[bool, Optional[str]]: (is_active, message)
                 - is_active: True si l'abonnement est actif, False sinon
                 - message: Message d'erreur ou None si actif
         """
+        # Utiliser CLIENT_ID depuis les variables d'environnement si client_id n'est pas fourni
+        if client_id is None:
+            client_id = os.getenv('CLIENT_ID')
+            if not client_id:
+                logger.error("CLIENT_ID non configuré dans les variables d'environnement")
+                return False, "Configuration incorrecte: CLIENT_ID manquant. Veuillez contacter le support."
+            logger.debug(f"Utilisation de CLIENT_ID depuis l'environnement: {client_id}")
+        
         conn = None
         cursor = None
         
