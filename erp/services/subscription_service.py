@@ -80,10 +80,13 @@ class SubscriptionService:
                 SELECT 
                     id,
                     client_id,
-                    date_fin_essai,
+                    plan,
+                    prix_mensuel,
+                    date_debut,
+                    date_fin,
                     statut,
-                    date_creation,
-                    date_modification
+                    periode_essai,
+                    date_fin_essai
                 FROM abonnements
                 WHERE client_id = %s
             """
@@ -95,21 +98,36 @@ class SubscriptionService:
                 logger.warning(f"Aucun abonnement trouvé pour le client: {client_id}")
                 return False, "Aucun abonnement actif. Veuillez contacter le support."
             
-            # Vérifier la date de fin d'essai
-            date_fin_essai = abonnement['date_fin_essai']
+            # Récupérer les informations d'abonnement
             statut_actuel = abonnement['statut']
+            periode_essai = abonnement.get('periode_essai', False)
+            date_fin_essai = abonnement.get('date_fin_essai')
+            date_fin = abonnement.get('date_fin')
             
-            if date_fin_essai:
+            date_maintenant = datetime.now()
+            
+            # Vérifier si en période d'essai
+            if periode_essai and date_fin_essai:
                 # Convertir la date en datetime si nécessaire
                 if isinstance(date_fin_essai, str):
-                    date_fin_essai = datetime.strptime(date_fin_essai, '%Y-%m-%d').date()
-                elif isinstance(date_fin_essai, datetime):
-                    date_fin_essai = date_fin_essai.date()
+                    date_fin_essai = datetime.strptime(date_fin_essai, '%Y-%m-%d %H:%M:%S')
                 
-                date_aujourd_hui = datetime.now().date()
+                if date_fin_essai < date_maintenant:
+                    if statut_actuel != 'suspendu':
+                        # Mettre à jour le statut à suspendu
+                        self._update_subscription_status(cursor, abonnement['id'], 'suspendu')
+                        conn.commit()
+                        logger.warning(f"Période d'essai expirée pour {client_id}, statut mis à jour à 'suspendu'")
+                    
+                    return False, "Votre période d'essai a expiré. Veuillez souscrire à un abonnement."
+            
+            # Vérifier la date de fin d'abonnement
+            if date_fin:
+                # Convertir la date en datetime si nécessaire
+                if isinstance(date_fin, str):
+                    date_fin = datetime.strptime(date_fin, '%Y-%m-%d %H:%M:%S')
                 
-                # Si la date est dépassée et le statut n'est pas déjà suspendu
-                if date_fin_essai < date_aujourd_hui:
+                if date_fin < date_maintenant:
                     if statut_actuel != 'suspendu':
                         # Mettre à jour le statut à suspendu
                         self._update_subscription_status(cursor, abonnement['id'], 'suspendu')
@@ -124,7 +142,8 @@ class SubscriptionService:
                 return False, "Votre compte est suspendu. Veuillez renouveler votre abonnement."
             
             # L'abonnement est actif
-            logger.info(f"Abonnement actif pour le client: {client_id}")
+            plan = abonnement.get('plan', 'N/A')
+            logger.info(f"Abonnement actif pour le client {client_id} (Plan: {plan})")
             return True, None
             
         except psycopg2.Error as e:
@@ -156,8 +175,7 @@ class SubscriptionService:
         try:
             update_query = """
                 UPDATE abonnements
-                SET statut = %s,
-                    date_modification = CURRENT_TIMESTAMP
+                SET statut = %s
                 WHERE id = %s
             """
             cursor.execute(update_query, (new_status, abonnement_id))
@@ -188,10 +206,13 @@ class SubscriptionService:
                 SELECT 
                     id,
                     client_id,
-                    date_fin_essai,
+                    plan,
+                    prix_mensuel,
+                    date_debut,
+                    date_fin,
                     statut,
-                    date_creation,
-                    date_modification
+                    periode_essai,
+                    date_fin_essai
                 FROM abonnements
                 WHERE client_id = %s
             """
