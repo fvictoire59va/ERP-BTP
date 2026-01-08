@@ -231,12 +231,12 @@ echo "[3/4] Creation de la stack $STACK_NAME..."
 # Échapper les valeurs sensibles pour JSON
 # Utiliser printf et stdin pour éviter les problèmes d'échappement shell avec les caractères spéciaux (#, &, $, etc.)
 # json.dumps() ajoute des guillemets, donc on les enlève avec [1:-1]
-# strip() pour retirer les newlines ajoutés par stdin
-POSTGRES_PASSWORD_ESCAPED=$(printf '%s' "$POSTGRES_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
-SECRET_KEY_ESCAPED=$(printf '%s' "$SECRET_KEY" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
-INITIAL_PASSWORD_ESCAPED=$(printf '%s' "$INITIAL_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
-CLIENT_NAME_ESCAPED=$(printf '%s' "$CLIENT_NAME" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
-SUBSCRIPTION_DB_PASSWORD_ESCAPED=$(printf '%s' "$SUBSCRIPTION_DB_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
+# strip() pour retirer les newlines ajoutés par stdin et .strip('\'"') pour retirer les guillemets ajoutés par l'utilisateur
+POSTGRES_PASSWORD_ESCAPED=$(printf '%s' "$POSTGRES_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip().strip('\\'\"'), ensure_ascii=True)[1:-1])")
+SECRET_KEY_ESCAPED=$(printf '%s' "$SECRET_KEY" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip().strip('\\'\"'), ensure_ascii=True)[1:-1])")
+INITIAL_PASSWORD_ESCAPED=$(printf '%s' "$INITIAL_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip().strip('\\'\"'), ensure_ascii=True)[1:-1])")
+CLIENT_NAME_ESCAPED=$(printf '%s' "$CLIENT_NAME" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip().strip('\\'\"'), ensure_ascii=True)[1:-1])")
+SUBSCRIPTION_DB_PASSWORD_ESCAPED=$(printf '%s' "$SUBSCRIPTION_DB_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip().strip('\\'\"'), ensure_ascii=True)[1:-1])")
 
 # Debug: Afficher les valeurs échappées (attention en production!)
 echo "DEBUG: Mot de passe original: $INITIAL_PASSWORD (longueur: ${#INITIAL_PASSWORD})"

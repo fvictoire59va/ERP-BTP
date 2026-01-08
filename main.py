@@ -355,6 +355,19 @@ def _init_default_admin():
     initial_username = os.getenv('INITIAL_USERNAME', 'admin')
     initial_password = os.getenv('INITIAL_PASSWORD', 'admin123')
     
+    # Log détaillé des paramètres pour déboguer les problèmes de caractères spéciaux
+    logger.debug(f"INITIAL_PASSWORD reçu: '{initial_password}' (longueur: {len(initial_password)}, bytes: {initial_password.encode('utf-8')})")
+    
+    # Vérifier que le mot de passe n'a pas été tronqué par Portainer
+    # (Portainer peut tronquer les variables contenant des caractères spéciaux comme # ou ?)
+    if initial_password and len(initial_password) < 8:
+        logger.warning(
+            f"⚠️ ATTENTION: Le mot de passe semble avoir été tronqué par Portainer (longueur: {len(initial_password)}). "
+            f"Valeur reçue: '{initial_password}'. "
+            f"Vérifiez que la variable INITIAL_PASSWORD dans Portainer est correctement configurée. "
+            f"Les caractères spéciaux (#, ?, &) doivent être échappés correctement dans le docker-compose.yml"
+        )
+    
     logger.info(f"Aucun utilisateur trouvé, création de l'admin par défaut: {initial_username}")
     
     try:
