@@ -290,6 +290,58 @@ class SubscriptionService:
                 cursor.close()
             if conn:
                 conn.close()
+    
+    def add_user_log(self, user_id: str, username: str, action: str):
+        """
+        Enregistre un log de connexion/déconnexion dans la base externe
+        
+        Args:
+            user_id: ID de l'utilisateur
+            username: Nom d'utilisateur
+            action: Action effectuée ('login' ou 'logout')
+        """
+        conn = None
+        cursor = None
+        
+        try:
+            # Récupérer le CLIENT_ID depuis l'environnement
+            client_id = os.getenv('CLIENT_ID')
+            if not client_id:
+                logger.warning("CLIENT_ID non configuré, impossible d'enregistrer le log de connexion")
+                return
+            
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # Timestamp actuel
+            timestamp = datetime.now()
+            
+            # Insérer le log dans la table connexions
+            query = """
+                INSERT INTO connexions (client_id, user_id, username, action, timestamp)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(query, (client_id, user_id, username, action, timestamp))
+            conn.commit()
+            
+            logger.info(f"Log de connexion enregistré: {username} - {action} à {timestamp}")
+            
+        except psycopg2.Error as e:
+            logger.error(f"Erreur lors de l'enregistrement du log de connexion: {e}", exc_info=True)
+            if conn:
+                conn.rollback()
+            
+        except Exception as e:
+            logger.error(f"Erreur inattendue lors de l'enregistrement du log: {e}", exc_info=True)
+            if conn:
+                conn.rollback()
+            
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
 
 # Instance singleton du service

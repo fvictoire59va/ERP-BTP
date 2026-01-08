@@ -197,6 +197,11 @@ class AuthManager:
         # Créer une session
         session_id = self.session_manager.create_session(user.id)
         
+        # Enregistrer le log de connexion dans la base externe
+        from erp.services.subscription_service import get_subscription_service
+        subscription_service = get_subscription_service()
+        subscription_service.add_user_log(user.id, user.username, 'login')
+        
         return user, session_id, None
     
     def register(self, username: str, email: str, password: str, 
@@ -291,7 +296,17 @@ class AuthManager:
     
     def logout(self, session_id: str):
         """Déconnecte un utilisateur"""
+        # Récupérer l'utilisateur avant de supprimer la session
+        user = self.get_current_user(session_id)
+        
+        # Supprimer la session
         self.session_manager.delete_session(session_id)
+        
+        # Enregistrer le log de déconnexion dans la base externe
+        if user:
+            from erp.services.subscription_service import get_subscription_service
+            subscription_service = get_subscription_service()
+            subscription_service.add_user_log(user.id, user.username, 'logout')
     
     def request_password_reset(self, email: str) -> Optional[str]:
         """Demande une réinitialisation de mot de passe
