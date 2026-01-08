@@ -61,7 +61,7 @@ services:
       
       # Utilisateur initial (création automatique au démarrage)
       - INITIAL_USERNAME=${INITIAL_USERNAME:-admin}
-      - INITIAL_PASSWORD='${INITIAL_PASSWORD:-}'
+      - INITIAL_PASSWORD=${INITIAL_PASSWORD:-}
       
       # Configuration email (optionnel)
       - SMTP_SERVER=${SMTP_SERVER:-}
