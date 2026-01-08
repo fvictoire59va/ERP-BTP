@@ -252,9 +252,9 @@ class SubscriptionService:
             conn = self._get_connection()
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
-            # Chercher le client par email
+            # Chercher le client_id en fonction de l'email
             query = """
-                SELECT id
+                SELECT DISTINCT client_id
                 FROM abonnements
                 WHERE client_id IN (
                     SELECT id FROM clients WHERE email = %s
@@ -266,8 +266,9 @@ class SubscriptionService:
             result = cursor.fetchone()
             
             if result:
-                logger.debug(f"Client_id trouvé pour email '{email}': {result['id']}")
-                return result['id']
+                client_id = result['client_id']
+                logger.debug(f"Client_id trouvé pour email '{email}': {client_id}")
+                return client_id
             
             logger.debug(f"Aucun client_id trouvé pour email '{email}'")
             return None
