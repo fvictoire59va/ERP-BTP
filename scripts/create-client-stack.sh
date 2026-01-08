@@ -99,8 +99,9 @@ echo ""
 # Fonction pour échapper les caractères spéciaux pour JSON
 json_escape() {
     local string="$1"
-    # Échapper les caractères spéciaux JSON avec printf pour éviter les problèmes bash
-    printf '%s' "$string" | python3 -c 'import json, sys; print(json.dumps(sys.stdin.read())[1:-1])'
+    # Utiliser Python pour échapper correctement les caractères spéciaux JSON
+    # ensure_ascii=True échappe tous les caractères non-ASCII et spéciaux
+    printf '%s' "$string" | python3 -c 'import json, sys; print(json.dumps(sys.stdin.read(), ensure_ascii=True)[1:-1])'
 }
 
 # Générer un mot de passe initial si non fourni
@@ -111,7 +112,7 @@ if [ -z "$INITIAL_PASSWORD" ]; then
     else
         INITIAL_PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)
     fi
-    echo "Mot de passe temporaire genere automatiquement"
+    printf "Mot de passe temporaire genere automatiquement: %s\n" "$INITIAL_PASSWORD"
 fi
 
 # 0. Utiliser l'ID du client fourni ou le récupérer via API
@@ -230,11 +231,17 @@ echo "[3/4] Creation de la stack $STACK_NAME..."
 # Échapper les valeurs sensibles pour JSON
 # Utiliser printf et stdin pour éviter les problèmes d'échappement shell avec les caractères spéciaux (#, &, $, etc.)
 # json.dumps() ajoute des guillemets, donc on les enlève avec [1:-1]
-POSTGRES_PASSWORD_ESCAPED=$(printf '%s' "$POSTGRES_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read())[1:-1])")
-SECRET_KEY_ESCAPED=$(printf '%s' "$SECRET_KEY" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read())[1:-1])")
-INITIAL_PASSWORD_ESCAPED=$(printf '%s' "$INITIAL_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read())[1:-1])")
-CLIENT_NAME_ESCAPED=$(printf '%s' "$CLIENT_NAME" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read())[1:-1])")
-SUBSCRIPTION_DB_PASSWORD_ESCAPED=$(printf '%s' "$SUBSCRIPTION_DB_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read())[1:-1])")
+# strip() pour retirer les newlines ajoutés par stdin
+POSTGRES_PASSWORD_ESCAPED=$(printf '%s' "$POSTGRES_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
+SECRET_KEY_ESCAPED=$(printf '%s' "$SECRET_KEY" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
+INITIAL_PASSWORD_ESCAPED=$(printf '%s' "$INITIAL_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
+CLIENT_NAME_ESCAPED=$(printf '%s' "$CLIENT_NAME" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
+SUBSCRIPTION_DB_PASSWORD_ESCAPED=$(printf '%s' "$SUBSCRIPTION_DB_PASSWORD" | python3 -c "import json, sys; print(json.dumps(sys.stdin.read().strip(), ensure_ascii=True)[1:-1])")
+
+# Debug: Afficher les valeurs échappées (attention en production!)
+echo "DEBUG: Mot de passe original: $INITIAL_PASSWORD (longueur: ${#INITIAL_PASSWORD})"
+echo "DEBUG: Mot de passe échappé pour JSON: $INITIAL_PASSWORD_ESCAPED"
+echo "⚠️  ATTENTION: Les caractères spéciaux (#, ?, &) dans les mots de passe peuvent être mal traités par Portainer"
 
 # Créer le JSON de la stack avec Git repository
 STACK_JSON=$(cat <<EOF
@@ -299,7 +306,7 @@ echo "  Utilisateur              : $SUBSCRIPTION_DB_USER"
 echo ""
 echo "Identifiants de connexion temporaires:"
 echo "  Nom d'utilisateur        : $CLIENT_NAME"
-echo "  Mot de passe             : $INITIAL_PASSWORD"
+printf "  Mot de passe             : %s\n" "$INITIAL_PASSWORD"
 echo "  (A changer lors de la premiere connexion)"
 echo "================================="
 echo ""
