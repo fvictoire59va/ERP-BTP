@@ -168,9 +168,6 @@ STACKS=$(curl -k -s -X GET "$PORTAINER_URL/api/stacks" \
 # Utiliser grep -E pour compatibilité Debian
 CLIENT_COUNT=$(echo "$STACKS" | grep -o '"Name":"client-'"$CLIENT_NAME"'_[0-9]\+' | wc -l)
 
-# Calculer le prochain numéro de client (base 1)
-CLIENT_NUMBER=$((CLIENT_COUNT + 1))
-
 # Récupérer tous les ports utilisés par les stacks existantes
 echo "Recuperation des ports utilises..."
 USED_PORTS=""
@@ -213,7 +210,7 @@ done
 
 echo "Nombre de clients existants avec ce nom: $CLIENT_COUNT"
 echo "Ports actuellement utilises:$USED_PORTS"
-echo "Numero de la base pour ce client: $CLIENT_NUMBER"
+echo "Client ID pour ce client: $CLIENT_ID"
 echo "Port application attribue: $NEXT_PORT"
 
 # 3. Vérifier si la stack existe déjà (vérification améliorée)
@@ -257,7 +254,6 @@ STACK_JSON=$(cat <<EOF
         {"name": "INITIAL_PASSWORD", "value": "$INITIAL_PASSWORD_ESCAPED"},
         {"name": "CLIENT_ID", "value": "$CLIENT_ID"},
         {"name": "CLIENT_NAME", "value": "$CLIENT_NAME_ESCAPED"},
-        {"name": "CLIENT_NUMBER", "value": "$CLIENT_NUMBER"},
         {"name": "APP_PORT", "value": "$NEXT_PORT"},
         {"name": "SUBSCRIPTION_DB_HOST", "value": "$SUBSCRIPTION_DB_HOST"},
         {"name": "SUBSCRIPTION_DB_PORT", "value": "$SUBSCRIPTION_DB_PORT"},
@@ -289,7 +285,7 @@ echo ""
 echo "[4/4] Resume de la configuration:"
 echo "================================="
 echo "Nom du client              : $CLIENT_NAME"
-echo "Numero client              : $CLIENT_NUMBER"
+echo "Client ID                  : $CLIENT_ID"
 echo "Nom de la stack            : $STACK_NAME"
 echo "Port application           : $NEXT_PORT"
 echo "URL acces                  : http://votre-serveur:$NEXT_PORT"
