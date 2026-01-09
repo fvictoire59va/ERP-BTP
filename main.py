@@ -355,17 +355,24 @@ def _init_default_admin():
     initial_username = os.getenv('INITIAL_USERNAME', 'admin')
     initial_password = os.getenv('INITIAL_PASSWORD', 'admin123')
     
+    # Retirer les guillemets si présents (ajoutés dans Portainer pour les caractères spéciaux)
+    if initial_password.startswith('"') and initial_password.endswith('"'):
+        initial_password = initial_password[1:-1]
+    elif initial_password.startswith("'") and initial_password.endswith("'"):
+        initial_password = initial_password[1:-1]
+    
     # Log détaillé des paramètres pour déboguer les problèmes de caractères spéciaux
     logger.debug(f"INITIAL_PASSWORD reçu: '{initial_password}' (longueur: {len(initial_password)}, bytes: {initial_password.encode('utf-8')})")
     
     # Vérifier que le mot de passe n'a pas été tronqué par Portainer
-    # (Portainer peut tronquer les variables contenant des caractères spéciaux comme # ou ?)
+    # Le caractère # est interprété comme commentaire dans les fichiers .env/YAML
+    # Les caractères spéciaux comme # ? & doivent être entre guillemets dans Portainer
     if initial_password and len(initial_password) < 8:
         logger.warning(
-            f"⚠️ ATTENTION: Le mot de passe semble avoir été tronqué par Portainer (longueur: {len(initial_password)}). "
+            f"⚠️ ATTENTION: Le mot de passe semble avoir été tronqué (longueur: {len(initial_password)}). "
             f"Valeur reçue: '{initial_password}'. "
-            f"Vérifiez que la variable INITIAL_PASSWORD dans Portainer est correctement configurée. "
-            f"Les caractères spéciaux (#, ?, &) doivent être échappés correctement dans le docker-compose.yml"
+            f"Cela peut se produire si le mot de passe contient des caractères spéciaux (# ? & etc). "
+            f"⚠️ SOLUTION: Entourez INITIAL_PASSWORD de guillemets dans Portainer : \"HWVnDsZ+W#9W\""
         )
     
     logger.info(f"Aucun utilisateur trouvé, création de l'admin par défaut: {initial_username}")
@@ -424,6 +431,13 @@ def welcome_page():
     
     initial_username = os.getenv('INITIAL_USERNAME', 'admin')
     initial_password = os.getenv('INITIAL_PASSWORD', 'admin123')
+    
+    # Retirer les guillemets si présents (ajoutés dans Portainer pour les caractères spéciaux)
+    if initial_password.startswith('"') and initial_password.endswith('"'):
+        initial_password = initial_password[1:-1]
+    elif initial_password.startswith("'") and initial_password.endswith("'"):
+        initial_password = initial_password[1:-1]
+    
     app_url = os.getenv('APP_URL', 'http://localhost:8080')
     
     with ui.column().classes('w-full h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100'):
