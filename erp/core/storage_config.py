@@ -1,12 +1,13 @@
 """
 Configuration pour choisir le backend de stockage
+PostgreSQL est maintenant le backend unique.
 """
 import os
 
-# Backend de stockage: 'json' ou 'postgres'
-STORAGE_BACKEND = os.getenv('ERP_STORAGE_BACKEND', 'json')
+# Backend de stockage: PostgreSQL uniquement
+STORAGE_BACKEND = 'postgres'
 
-# Configuration PostgreSQL (utilisée uniquement si STORAGE_BACKEND == 'postgres')
+# Configuration PostgreSQL
 POSTGRES_CONFIG = {
     'host': os.getenv('POSTGRES_HOST', 'localhost'),
     'port': os.getenv('POSTGRES_PORT', '5432'),
@@ -18,12 +19,7 @@ POSTGRES_CONFIG = {
 
 def get_data_manager():
     """
-    Retourne l'instance du gestionnaire de données approprié
-    selon la configuration
+    Retourne l'instance du gestionnaire de données PostgreSQL
     """
-    if STORAGE_BACKEND == 'postgres':
-        from erp.core.data_manager_postgres import DataManagerPostgres
-        return DataManagerPostgres()
-    else:
-        from erp.core.data_manager import DataManager
-        return DataManager()
+    from erp.core.data_manager_postgres import DataManagerPostgres
+    return DataManagerPostgres()

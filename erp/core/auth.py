@@ -168,6 +168,7 @@ class AuthManager:
         
         # Si pas de client_id, chercher dans la base des abonnements
         client_id_to_check = user.client_id
+        logger.debug(f"client_id de l'utilisateur: {client_id_to_check}")
         if not client_id_to_check:
             # Essayer de trouver le client par email ou username
             email_to_search = user.email if user.email else username
