@@ -36,6 +36,8 @@ services:
       # Configuration de base
       - PYTHONUNBUFFERED=1
       - CLIENT_NAME=${CLIENT_NAME:-client}
+      - NICEGUI_RELOAD=${NICEGUI_RELOAD:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       
       # Configuration base de données
       - ERP_STORAGE_BACKEND=postgres

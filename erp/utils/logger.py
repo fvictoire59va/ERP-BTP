@@ -4,6 +4,7 @@ Logging configuration for ERP BTP application
 Provides centralized logging with both console and file handlers.
 """
 import logging
+import os
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -113,7 +114,13 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
         name = APP_NAME
     
     if name not in _loggers:
-        return setup_logger(name)
+        # Récupérer le niveau de log depuis l'environnement
+        _log_level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+        try:
+            _log_level = getattr(logging, _log_level_str)
+        except AttributeError:
+            _log_level = logging.INFO
+        return setup_logger(name, level=_log_level)
     
     return _loggers[name]
 
@@ -143,4 +150,11 @@ def log_function_call(logger: logging.Logger):
 
 
 # Create main application logger on module import
-app_logger = setup_logger(APP_NAME)
+# Lire le niveau de log depuis la variable d'environnement LOG_LEVEL
+_log_level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+try:
+    _log_level = getattr(logging, _log_level_str)
+except AttributeError:
+    _log_level = logging.INFO
+
+app_logger = setup_logger(APP_NAME, level=_log_level)
