@@ -55,6 +55,7 @@ services:
       - SUBSCRIPTION_DB_PASSWORD=${SUBSCRIPTION_DB_PASSWORD:-}
       
       # Configuration application
+      - CLIENT_ID=${CLIENT_ID}
       - APP_URL=${APP_URL}
       - SECRET_KEY=${SECRET_KEY}
       
