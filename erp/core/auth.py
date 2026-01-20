@@ -201,7 +201,7 @@ class AuthManager:
         # Enregistrer le log de connexion dans la base externe
         from erp.services.subscription_service import get_subscription_service
         subscription_service = get_subscription_service()
-        subscription_service.add_user_log(user.id, user.username, 'login')
+        subscription_service.add_user_log(user.id, user.username, 'login', client_id_to_check)
         
         return user, session_id, None
     
@@ -307,7 +307,7 @@ class AuthManager:
         if user:
             from erp.services.subscription_service import get_subscription_service
             subscription_service = get_subscription_service()
-            subscription_service.add_user_log(user.id, user.username, 'logout')
+            subscription_service.add_user_log(user.id, user.username, 'logout', user.client_id)
     
     def request_password_reset(self, email: str) -> Optional[str]:
         """Demande une réinitialisation de mot de passe

@@ -291,7 +291,7 @@ class SubscriptionService:
             if conn:
                 conn.close()
     
-    def add_user_log(self, user_id: str, username: str, action: str):
+    def add_user_log(self, user_id: str, username: str, action: str, client_id: str = None):
         """
         Enregistre un log de connexion/déconnexion dans la base externe
         
@@ -299,15 +299,18 @@ class SubscriptionService:
             user_id: ID de l'utilisateur
             username: Nom d'utilisateur
             action: Action effectuée ('login' ou 'logout')
+            client_id: ID du client (optionnel, utilise CLIENT_ID de l'environnement par défaut)
         """
         conn = None
         cursor = None
         
         try:
-            # Récupérer le CLIENT_ID depuis l'environnement
-            client_id = os.getenv('CLIENT_ID')
+            # Utiliser le client_id fourni, sinon récupérer depuis l'environnement
             if not client_id:
-                logger.warning("CLIENT_ID non configuré, impossible d'enregistrer le log de connexion")
+                client_id = os.getenv('CLIENT_ID')
+            
+            if not client_id:
+                logger.warning("CLIENT_ID non configuré et non fourni, impossible d'enregistrer le log de connexion")
                 return
             
             conn = self._get_connection()
@@ -325,7 +328,7 @@ class SubscriptionService:
             cursor.execute(query, (client_id, user_id, username, action, timestamp))
             conn.commit()
             
-            logger.info(f"Log de connexion enregistré: {username} - {action} à {timestamp}")
+            logger.info(f"Log de connexion enregistré: {username} - {action} à {timestamp} (client: {client_id})")
             
         except psycopg2.Error as e:
             logger.error(f"Erreur lors de l'enregistrement du log de connexion: {e}", exc_info=True)
