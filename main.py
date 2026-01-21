@@ -447,7 +447,7 @@ def welcome_page():
         with ui.card().classes('w-[600px] p-8 shadow-xl'):
             # Icône de succès
             with ui.row().classes('w-full justify-center mb-4'):
-                ui.html('<div style="font-size: 64px;">🎉</div>')
+                ui.html('<div style="font-size: 64px;">🎉</div>', sanitize=False)
             
             ui.label('Félicitations !').classes('text-3xl font-bold text-center mb-2 text-green-600')
             ui.label('Votre ERP BTP est prêt').classes('text-xl text-center mb-6 text-gray-700')
@@ -473,10 +473,10 @@ def welcome_page():
             
             # Avertissement de sécurité
             with ui.card().classes('w-full p-4 bg-yellow-50 border-2 border-yellow-300 mb-6'):
-                ui.html('<div class="flex items-start gap-3"><div style="font-size: 24px;">⚠️</div><div>')
+                ui.html('<div class="flex items-start gap-3"><div style="font-size: 24px;">⚠️</div><div>', sanitize=False)
                 ui.label('Important : Changez ce mot de passe dès la première connexion !').classes('font-semibold text-yellow-800')
                 ui.label('Pour des raisons de sécurité, modifiez le mot de passe par défaut dans les paramètres de votre compte.').classes('text-sm text-yellow-700 mt-1')
-                ui.html('</div></div>')
+                ui.html('</div></div>', sanitize=False)
             
             # Bouton de connexion
             ui.button('Se connecter', on_click=lambda: ui.navigate.to('/login')).classes('w-full').style(
@@ -735,7 +735,7 @@ def renew_subscription_page(request: Request):
         with ui.card().classes('w-full max-w-4xl p-8 shadow-xl'):
             # En-tête
             with ui.row().classes('w-full justify-center mb-6'):
-                ui.html('<div style="font-size: 48px;">⚠️</div>')
+                ui.html('<div style="font-size: 48px;">⚠️</div>', sanitize=False)
             
             ui.label('Votre abonnement a expiré').classes('text-3xl font-bold text-center mb-2 text-orange-600')
             ui.label('Choisissez un plan pour continuer à utiliser ERP BTP').classes('text-lg text-center mb-8 text-gray-600')
@@ -775,7 +775,7 @@ def renew_subscription_page(request: Request):
                         with ui.column().classes('gap-2 mb-6'):
                             for feature in plan_info['features']:
                                 with ui.row().classes('items-center gap-2'):
-                                    ui.html('<span style="color: green;">✓</span>')
+                                    ui.html('<span style="color: green;">✓</span>', sanitize=False)
                                     ui.label(feature).classes('text-sm text-gray-600')
                         
                         def select_plan(p=plan_id, c=card):
@@ -827,9 +827,9 @@ def renew_subscription_page(request: Request):
             
             # Informations de sécurité
             with ui.row().classes('w-full justify-center mt-8 gap-4 text-gray-500 text-sm'):
-                ui.html('🔒 Paiement sécurisé par Stripe')
-                ui.html('|')
-                ui.html('💳 Cartes Visa, Mastercard, Amex acceptées')
+                ui.html('🔒 Paiement sécurisé par Stripe', sanitize=False)
+                ui.html('|', sanitize=False)
+                ui.html('💳 Cartes Visa, Mastercard, Amex acceptées', sanitize=False)
     
     return None
 
@@ -847,7 +847,7 @@ def payment_success_page(request: Request):
     
     with ui.column().classes('w-full h-screen items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100'):
         with ui.card().classes('w-[500px] p-8 shadow-xl text-center'):
-            ui.html('<div style="font-size: 64px;">🎉</div>')
+            ui.html('<div style="font-size: 64px;">🎉</div>', sanitize=False)
             
             ui.label('Paiement réussi !').classes('text-3xl font-bold text-green-600 mb-4')
             ui.label('Merci pour votre confiance.').classes('text-xl text-gray-700 mb-2')
@@ -888,7 +888,7 @@ def payment_cancelled_page():
     
     with ui.column().classes('w-full h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100'):
         with ui.card().classes('w-[500px] p-8 shadow-xl text-center'):
-            ui.html('<div style="font-size: 64px;">😕</div>')
+            ui.html('<div style="font-size: 64px;">😕</div>', sanitize=False)
             
             ui.label('Paiement annulé').classes('text-3xl font-bold text-gray-600 mb-4')
             ui.label('Vous avez annulé le processus de paiement.').classes('text-gray-600 mb-6')
@@ -954,7 +954,7 @@ def pricing_page():
                         with ui.column().classes('gap-3 mb-8'):
                             for feature in plan_info['features']:
                                 with ui.row().classes('items-center gap-2'):
-                                    ui.html('<span style="color: #4CAF50; font-size: 18px;">✓</span>')
+                                    ui.html('<span style="color: #4CAF50; font-size: 18px;">✓</span>', sanitize=False)
                                     ui.label(feature).classes('text-gray-600')
                         
                         ui.button(
