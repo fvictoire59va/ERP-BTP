@@ -150,8 +150,8 @@ class AuthPanel:
                 # Vérifier si l'abonnement est expiré
                 if error_message:
                     logger.warning(f"Login blocked for {username}: {error_message}")
-                    self.error_label.text = error_message
-                    self.error_label.visible = True
+                    # Rediriger vers la page de tarification
+                    ui.navigate('http://176.131.66.167:8100/tarifs')
                     return
                 
                 # Connexion réussie
@@ -207,8 +207,8 @@ class AuthPanel:
                 # Vérifier si l'abonnement est expiré (peu probable lors de l'inscription, mais par sécurité)
                 if error_message:
                     logger.warning(f"Registration blocked for {username}: {error_message}")
-                    self.register_error_label.text = error_message
-                    self.register_error_label.visible = True
+                    # Rediriger vers la page de tarification
+                    ui.navigate('http://176.131.66.167:8100/tarifs')
                     return
                 
                 # Inscription réussie
