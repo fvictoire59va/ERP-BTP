@@ -4,6 +4,9 @@ from pathlib import Path
 import sys
 import os
 from dotenv import load_dotenv
+from fastapi import Request
+from fastapi.responses import RedirectResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Charger les variables d'environnement depuis .env si le fichier existe
 load_dotenv()
@@ -318,10 +321,10 @@ def init_styles():
     ''')
 
 
-# Imports pour l'authentification
-from fastapi import Request
-from fastapi.responses import RedirectResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+# Routes API qui n'ont pas besoin d'authentification
+def is_api_route(path: str) -> bool:
+    """Vérifier si c'est une route API publique"""
+    return path.startswith('/api/subscriptions/')
 
 unrestricted_page_routes = {'/login', '/reset-password', '/forgot-password', '/welcome'}
 
@@ -764,13 +767,128 @@ def main():
     nicegui_app.add_static_files('/data', str(base_path / 'data'))
     nicegui_app.add_static_files('/static', str(base_path / 'static'))
     
-    # Ajouter le middleware d'authentification
+    # ==================== API ROUTES ====================
+    
+    @nicegui_app.post("/api/subscriptions/renew")
+    async def renew_subscription_api(request):
+        """
+        API endpoint pour prolonger un abonnement
+        
+        Body:
+            {
+                "renewal_token": "token_uuid",
+                "client_id": "client_email_or_id"
+            }
+        
+        Response:
+            {
+                "success": bool,
+                "message": str,
+                "new_expiry": date (si succès)
+            }
+        """
+        try:
+            from erp.services.subscription_service import get_subscription_service
+            from erp.utils.logger import get_logger
+            
+            logger = get_logger(__name__)
+            
+            # Récupérer les données du body
+            body = await request.json()
+            renewal_token = body.get('renewal_token')
+            client_id = body.get('client_id')
+            
+            if not renewal_token:
+                return {
+                    'success': False,
+                    'message': 'renewal_token est requis'
+                }
+            
+            # Appeler le service pour prolonger
+            subscription_service = get_subscription_service()
+            success, error_message = subscription_service.renew_subscription(renewal_token)
+            
+            if success:
+                logger.info(f"Subscription renewed via API for client {client_id}")
+                # Calculer la nouvelle date d'expiration (30 jours à partir de maintenant)
+                from datetime import datetime, timedelta
+                new_expiry = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
+                return {
+                    'success': True,
+                    'message': 'Abonnement prolongé avec succès',
+                    'new_expiry': new_expiry
+                }
+            else:
+                logger.warning(f"Subscription renewal failed for client {client_id}: {error_message}")
+                return {
+                    'success': False,
+                    'message': error_message or 'Erreur lors de la prolongation'
+                }
+                
+        except Exception as e:
+            from erp.utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Error in renew_subscription_api: {e}", exc_info=True)
+            return {
+                'success': False,
+                'message': f'Erreur serveur: {str(e)}'
+            }
+    
+    @nicegui_app.get("/api/subscriptions/status/{client_id}")
+    async def get_subscription_status(client_id: str):
+        """
+        API endpoint pour vérifier le statut d'un abonnement
+        
+        Response:
+            {
+                "active": bool,
+                "client_id": str,
+                "expiry_date": date,
+                "status": str
+            }
+        """
+        try:
+            from erp.services.subscription_service import get_subscription_service
+            from erp.utils.logger import get_logger
+            
+            logger = get_logger(__name__)
+            
+            subscription_service = get_subscription_service()
+            is_active, error_message = subscription_service.check_subscription(client_id)
+            
+            # Récupérer les infos d'abonnement
+            info = subscription_service.get_subscription_info(client_id)
+            
+            if info:
+                return {
+                    'active': is_active,
+                    'client_id': client_id,
+                    'expiry_date': info.get('date_fin_essai'),
+                    'status': info.get('statut')
+                }
+            else:
+                return {
+                    'active': False,
+                    'client_id': client_id,
+                    'message': 'Abonnement non trouvé'
+                }
+                
+        except Exception as e:
+            from erp.utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Error in get_subscription_status: {e}", exc_info=True)
+            return {
+                'active': False,
+                'message': f'Erreur serveur: {str(e)}'
+            }
+    
+    # ==================== MIDDLEWARE ====================
     @nicegui_app.add_middleware
     class AuthMiddleware(BaseHTTPMiddleware):
         """Middleware qui restreint l'accès aux pages"""
         async def dispatch(self, request: Request, call_next):
-            # Autoriser les ressources NiceGUI internes et les routes non restreintes
-            if request.url.path.startswith('/_nicegui') or request.url.path in unrestricted_page_routes:
+            # Autoriser les ressources NiceGUI internes, les routes non restreintes et les APIs publiques
+            if request.url.path.startswith('/_nicegui') or request.url.path in unrestricted_page_routes or is_api_route(request.url.path):
                 return await call_next(request)
             
             # Vérifier l'authentification (le storage peut ne pas être encore initialisé)
