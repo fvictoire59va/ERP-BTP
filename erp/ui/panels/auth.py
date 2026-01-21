@@ -167,9 +167,10 @@ class AuthPanel:
                         'expiry': expiry
                     }
                     
-                    # Rediriger vers la page de renouvellement interne
+                    # Rediriger vers la page de renouvellement interne via JavaScript
                     renewal_link = f"/renew-subscription?token={renewal_token}&client_id={user.email or username}"
-                    ui.navigate(renewal_link)
+                    logger.info(f"Redirecting to renewal page: {renewal_link}")
+                    ui.run_javascript(f"window.location.href = '{renewal_link}'")
                     return
                 
                 # Connexion réussie
@@ -242,9 +243,10 @@ class AuthPanel:
                         'expiry': expiry
                     }
                     
-                    # Rediriger vers la page de renouvellement interne
+                    # Rediriger vers la page de renouvellement interne via JavaScript
                     renewal_link = f"/renew-subscription?token={renewal_token}&client_id={email}"
-                    ui.navigate(renewal_link)
+                    logger.info(f"Redirecting to renewal page: {renewal_link}")
+                    ui.run_javascript(f"window.location.href = '{renewal_link}'")
                     return
                 
                 # Inscription réussie
