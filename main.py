@@ -326,7 +326,7 @@ def is_api_route(path: str) -> bool:
     """Vérifier si c'est une route API publique"""
     return path.startswith('/api/subscriptions/')
 
-unrestricted_page_routes = {'/login', '/reset-password', '/forgot-password', '/welcome'}
+unrestricted_page_routes = {'/login', '/reset-password', '/forgot-password', '/welcome', '/renew-subscription'}
 
 # Créer une instance globale de l'AuthManager (partagée entre toutes les pages)
 from erp.core.auth import AuthManager
@@ -696,9 +696,80 @@ def login_page(redirect_to: str = '/'):
     return None
 
 
+# Page de renouvellement d'abonnement
+@ui.page('/renew-subscription')
+def renew_subscription_page(request: Request):
+    """Page pour renouveler un abonnement expiré"""
+    from erp.utils.logger import get_logger
+    logger = get_logger('main')
+    
+    logger.info("=== RENEW SUBSCRIPTION PAGE CALLED ===")
+    
+    # Récupérer le token depuis les paramètres URL
+    renewal_token = request.query_params.get('token')
+    client_id = request.query_params.get('client_id')
+    
+    # Initialiser les styles
+    init_styles()
+    
+    with ui.column().classes('w-full h-full items-center justify-center bg-gray-100') as container:
+        with ui.card().classes('w-96 p-6'):
+            ui.label('Renouveler mon abonnement').classes('text-2xl font-bold mb-4')
+            
+            if not renewal_token:
+                ui.label('❌ Lien de renouvellement invalide ou manquant').classes('text-red-600 mb-4')
+                ui.button('Retour à la connexion', on_click=lambda: nicegui_app.navigate('/login')).classes('w-full')
+                return
+            
+            # Afficher les informations
+            ui.label('Votre abonnement a expiré.').classes('text-gray-600 mb-4')
+            ui.label('Cliquez sur le bouton ci-dessous pour prolonger votre abonnement de 30 jours.').classes('text-sm text-gray-500 mb-6')
+            
+            result_label = ui.label('').classes('text-sm mb-4')
+            result_label.visible = False
+            
+            async def renew_subscription():
+                """Effectue le renouvellement"""
+                from erp.services.subscription_service import get_subscription_service
+                
+                try:
+                    # Appeler le service de renouvellement
+                    subscription_service = get_subscription_service()
+                    success, error_message = subscription_service.renew_subscription(renewal_token)
+                    
+                    if success:
+                        result_label.text = '✅ Votre abonnement a été renouvelé avec succès !'
+                        result_label.classes('text-green-600', remove='text-red-600')
+                        result_label.visible = True
+                        
+                        logger.info(f"Subscription renewed successfully for client {client_id}")
+                        
+                        # Afficher le bouton de retour à la connexion
+                        await asyncio.sleep(2)
+                        nicegui_app.navigate('/login')
+                    else:
+                        result_label.text = f'❌ Erreur: {error_message}'
+                        result_label.classes('text-red-600')
+                        result_label.visible = True
+                        logger.warning(f"Subscription renewal failed: {error_message}")
+                        
+                except Exception as e:
+                    result_label.text = f'❌ Erreur lors du renouvellement: {str(e)}'
+                    result_label.classes('text-red-600')
+                    result_label.visible = True
+                    logger.error(f"Error renewing subscription: {e}", exc_info=True)
+            
+            with ui.row().classes('w-full gap-2'):
+                ui.button('Renouveler mon abonnement', on_click=renew_subscription).classes('flex-1 bg-green-600')
+                ui.button('Annuler', on_click=lambda: nicegui_app.navigate('/login')).classes('flex-1 bg-gray-400')
+    
+    return None
+
+
 # Page principale 
 from nicegui import app as nicegui_app
 from starlette.requests import Request
+import asyncio
 
 @ui.page('/')
 def index_page(request: Request):

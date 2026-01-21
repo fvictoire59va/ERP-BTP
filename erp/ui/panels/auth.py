@@ -167,8 +167,8 @@ class AuthPanel:
                         'expiry': expiry
                     }
                     
-                    # Rediriger vers la page de prolongation
-                    renewal_link = f"http://176.131.66.167:8100/tarifs?renewal_token={renewal_token}&client_id={user.email or username}"
+                    # Rediriger vers la page de renouvellement interne
+                    renewal_link = f"/renew-subscription?token={renewal_token}&client_id={user.email or username}"
                     ui.navigate(renewal_link)
                     return
                 
@@ -242,8 +242,8 @@ class AuthPanel:
                         'expiry': expiry
                     }
                     
-                    # Rediriger vers la page de prolongation
-                    renewal_link = f"http://176.131.66.167:8100/tarifs?renewal_token={renewal_token}&client_id={email}"
+                    # Rediriger vers la page de renouvellement interne
+                    renewal_link = f"/renew-subscription?token={renewal_token}&client_id={email}"
                     ui.navigate(renewal_link)
                     return
                 
