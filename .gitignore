@@ -65,7 +65,6 @@ ERP_BTP_v*.zip
 
 # Scripts de test et migration (développement uniquement)
 check_*.py
-test_*.py
 migrate_*.py
 recreate_tables.py
 reset_database.py
@@ -75,6 +74,12 @@ add_sous_categorie_column.py
 backup_postgres.bat
 run_postgres.bat
 test_connection.bat
+
+# Fichiers de test à la racine (pas dans tests/)
+/test_*.py
+
+# Autoriser le dossier tests/
+!tests/
 
 # Documentation développement (non nécessaire sur GitHub)
 FICHIERS_CREES.md
