@@ -127,6 +127,9 @@ class SubscriptionService:
                         self._update_subscription_status(cursor, abonnement['id'], 'suspendu')
                         conn.commit()
                         logger.warning(f"Abonnement expiré pour {client_id}, statut mis à jour à 'suspendu'")
+                        
+                        # Envoyer un email d'avertissement
+                        self._send_subscription_expired_email(client_id, abonnement['id'])
                     
                     return False, "Votre abonnement a expiré. Veuillez renouveler votre abonnement."
             
@@ -278,6 +281,136 @@ class SubscriptionService:
                 cursor.close()
             if conn:
                 conn.close()
+    
+    def _send_subscription_expired_email(self, client_id: str, abonnement_id: int):
+        """
+        Envoie un email d'avertissement d'expiration d'abonnement
+        
+        Args:
+            client_id: ID du client
+            abonnement_id: ID de l'abonnement
+        """
+        try:
+            # Récupérer l'adresse email du client
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Chercher les informations du client (email)
+            # On assume que client_id pourrait être un email ou on doit chercher dans une table users
+            # Pour l'instant, on envoie simplement à client_id s'il ressemble à un email
+            email = None
+            if '@' in str(client_id):
+                email = client_id
+            
+            if not email:
+                logger.warning(f"Impossible de déterminer l'email pour le client {client_id}")
+                return
+            
+            # Générer un token de prolongation
+            import uuid
+            from datetime import datetime, timedelta
+            
+            renewal_token = str(uuid.uuid4())
+            expiry = datetime.now() + timedelta(hours=24)
+            
+            # Sauvegarder le token pour validation ultérieure
+            # (on peut le stocker en mémoire ou dans une table de tokens)
+            self._renewal_tokens = getattr(self, '_renewal_tokens', {})
+            self._renewal_tokens[renewal_token] = {
+                'client_id': client_id,
+                'abonnement_id': abonnement_id,
+                'expiry': expiry
+            }
+            
+            # Créer le lien de prolongation
+            renewal_link = f"{os.getenv('APP_URL', 'http://localhost:8080')}/renew-subscription?token={renewal_token}"
+            
+            # Envoyer l'email
+            from erp.services.email_service import get_email_service
+            email_service = get_email_service()
+            email_service.send_subscription_expired_email(
+                to_email=email,
+                username=client_id,
+                client_id=client_id,
+                renewal_link=renewal_link
+            )
+            
+            logger.info(f"Email d'expiration d'abonnement envoyé à {email}")
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'envoi de l'email d'expiration: {e}", exc_info=True)
+        finally:
+            try:
+                if cursor:
+                    cursor.close()
+                if conn:
+                    conn.close()
+            except:
+                pass
+    
+    def renew_subscription(self, renewal_token: str) -> Tuple[bool, Optional[str]]:
+        """
+        Prolonge un abonnement en utilisant un token de prolongation
+        
+        Args:
+            renewal_token: Token de prolongation
+            
+        Returns:
+            Tuple[bool, Optional[str]]: (succès, message_erreur)
+        """
+        try:
+            # Vérifier le token
+            self._renewal_tokens = getattr(self, '_renewal_tokens', {})
+            if renewal_token not in self._renewal_tokens:
+                logger.warning(f"Token de prolongation invalide: {renewal_token}")
+                return False, "Lien de prolongation invalide ou expiré"
+            
+            token_data = self._renewal_tokens[renewal_token]
+            
+            # Vérifier l'expiration
+            from datetime import datetime
+            if datetime.now() > token_data['expiry']:
+                logger.warning(f"Token de prolongation expiré: {renewal_token}")
+                del self._renewal_tokens[renewal_token]
+                return False, "Lien de prolongation expiré"
+            
+            # Prolonger l'abonnement de 30 jours
+            client_id = token_data['client_id']
+            abonnement_id = token_data['abonnement_id']
+            
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            from datetime import datetime, timedelta
+            new_expiry = (datetime.now() + timedelta(days=30)).date()
+            
+            query = """
+                UPDATE abonnements
+                SET date_fin_essai = %s,
+                    statut = 'actif'
+                WHERE id = %s
+            """
+            
+            cursor.execute(query, (new_expiry, abonnement_id))
+            conn.commit()
+            
+            # Supprimer le token utilisé
+            del self._renewal_tokens[renewal_token]
+            
+            logger.info(f"Abonnement prolongé pour {client_id} jusqu'au {new_expiry}")
+            return True, None
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la prolongation d'abonnement: {e}", exc_info=True)
+            return False, "Erreur lors de la prolongation"
+        finally:
+            try:
+                if cursor:
+                    cursor.close()
+                if conn:
+                    conn.close()
+            except:
+                pass
 
 
 # Instance singleton du service

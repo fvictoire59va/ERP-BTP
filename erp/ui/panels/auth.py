@@ -150,8 +150,26 @@ class AuthPanel:
                 # Vérifier si l'abonnement est expiré
                 if error_message:
                     logger.warning(f"Login blocked for {username}: {error_message}")
-                    # Rediriger vers la page de tarification
-                    ui.navigate('http://176.131.66.167:8100/tarifs')
+                    # Créer un token de prolongation et rediriger
+                    from erp.services.subscription_service import get_subscription_service
+                    subscription_service = get_subscription_service()
+                    
+                    # Générer un token de prolongation
+                    import uuid
+                    from datetime import datetime, timedelta
+                    
+                    renewal_token = str(uuid.uuid4())
+                    expiry = datetime.now() + timedelta(hours=24)
+                    
+                    subscription_service._renewal_tokens = getattr(subscription_service, '_renewal_tokens', {})
+                    subscription_service._renewal_tokens[renewal_token] = {
+                        'client_id': user.email or username,
+                        'expiry': expiry
+                    }
+                    
+                    # Rediriger vers la page de prolongation
+                    renewal_link = f"http://176.131.66.167:8100/tarifs?renewal_token={renewal_token}&client_id={user.email or username}"
+                    ui.navigate(renewal_link)
                     return
                 
                 # Connexion réussie
@@ -207,8 +225,26 @@ class AuthPanel:
                 # Vérifier si l'abonnement est expiré (peu probable lors de l'inscription, mais par sécurité)
                 if error_message:
                     logger.warning(f"Registration blocked for {username}: {error_message}")
-                    # Rediriger vers la page de tarification
-                    ui.navigate('http://176.131.66.167:8100/tarifs')
+                    # Créer un token de prolongation et rediriger
+                    from erp.services.subscription_service import get_subscription_service
+                    subscription_service = get_subscription_service()
+                    
+                    # Générer un token de prolongation
+                    import uuid
+                    from datetime import datetime, timedelta
+                    
+                    renewal_token = str(uuid.uuid4())
+                    expiry = datetime.now() + timedelta(hours=24)
+                    
+                    subscription_service._renewal_tokens = getattr(subscription_service, '_renewal_tokens', {})
+                    subscription_service._renewal_tokens[renewal_token] = {
+                        'client_id': email,
+                        'expiry': expiry
+                    }
+                    
+                    # Rediriger vers la page de prolongation
+                    renewal_link = f"http://176.131.66.167:8100/tarifs?renewal_token={renewal_token}&client_id={email}"
+                    ui.navigate(renewal_link)
                     return
                 
                 # Inscription réussie

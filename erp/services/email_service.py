@@ -164,6 +164,109 @@ Cet email a été envoyé automatiquement, merci de ne pas y répondre.
         """
         
         return self.send_email(to_email, subject, html_content, text_content)
+    
+    def send_subscription_expired_email(self, to_email: str, username: str, client_id: str, renewal_link: str) -> bool:
+        """
+        Envoie un email d'avertissement d'expiration d'abonnement
+        
+        Args:
+            to_email: Adresse email du destinataire
+            username: Nom d'utilisateur
+            client_id: ID du client
+            renewal_link: Lien de prolongation d'abonnement
+            
+        Returns:
+            bool: True si envoyé avec succès, False sinon
+        """
+        subject = "⚠️ Votre abonnement ERP BTP a expiré"
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background-color: #dc2626; color: white; padding: 20px; text-align: center; }}
+                .content {{ background-color: #f9fafb; padding: 30px; }}
+                .button {{ 
+                    display: inline-block; 
+                    padding: 12px 30px; 
+                    background-color: #16a34a; 
+                    color: white; 
+                    text-decoration: none; 
+                    border-radius: 5px;
+                    margin: 20px 0;
+                }}
+                .footer {{ text-align: center; padding: 20px; font-size: 12px; color: #666; }}
+                .warning {{ background-color: #fee2e2; padding: 15px; border-left: 4px solid #dc2626; margin: 20px 0; }}
+                .info {{ background-color: #dbeafe; padding: 15px; border-left: 4px solid #0284c7; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>⚠️ Abonnement expiré</h1>
+                </div>
+                <div class="content">
+                    <p>Bonjour <strong>{username}</strong>,</p>
+                    
+                    <div class="warning">
+                        <strong>Votre abonnement ERP BTP a expiré</strong>
+                        <p>Vous ne pouvez plus accéder à l'application ERP BTP. Veuillez prolonger votre abonnement pour continuer.</p>
+                    </div>
+                    
+                    <p>Nous vous proposons plusieurs options pour prolonger votre abonnement :</p>
+                    
+                    <p style="text-align: center;">
+                        <a href="{renewal_link}" class="button">Prolonger mon abonnement</a>
+                    </p>
+                    
+                    <div class="info">
+                        <strong>ℹ️ À savoir :</strong>
+                        <ul>
+                            <li>Ce lien vous permettra de prolonger directement votre abonnement</li>
+                            <li>Vous retrouverez toutes vos données après la prolongation</li>
+                            <li>Le lien est valide pendant 24 heures</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Besoin d'aide ?</strong></p>
+                    <p>Si vous avez des questions sur votre abonnement, veuillez <a href="mailto:support@erp-btp.com">contacter notre support</a>.</p>
+                </div>
+                <div class="footer">
+                    <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+                    <p>&copy; 2025 ERP BTP - Tous droits réservés</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_content = f"""
+Bonjour {username},
+
+⚠️ VOTRE ABONNEMENT ERP BTP A EXPIRÉ
+
+Vous ne pouvez plus accéder à l'application ERP BTP. Veuillez prolonger votre abonnement pour continuer.
+
+Cliquez sur le lien ci-dessous pour prolonger directement votre abonnement :
+{renewal_link}
+
+À savoir :
+- Ce lien vous permettra de prolonger directement votre abonnement
+- Vous retrouverez toutes vos données après la prolongation
+- Le lien est valide pendant 24 heures
+
+Besoin d'aide ? Contactez notre support : support@erp-btp.com
+
+Cet email a été envoyé automatiquement, merci de ne pas y répondre.
+
+© 2025 ERP BTP - Tous droits réservés
+        """
+        
+        return self.send_email(to_email, subject, html_content, text_content)
 
 
 # Instance singleton
