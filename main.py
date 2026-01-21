@@ -663,7 +663,26 @@ def login_page(redirect_to: str = '/'):
             # Vérifier si l'abonnement est expiré ou suspendu
             if error_message:
                 logger.warning(f"✗ LOGIN BLOCKED for {username.value}: {error_message}")
-                ui.notify(error_message, color='negative')
+                
+                # Générer un token de prolongation et rediriger
+                from erp.services.subscription_service import get_subscription_service
+                import uuid
+                from datetime import datetime, timedelta
+                
+                subscription_service = get_subscription_service()
+                renewal_token = str(uuid.uuid4())
+                expiry = datetime.now() + timedelta(hours=24)
+                
+                subscription_service._renewal_tokens = getattr(subscription_service, '_renewal_tokens', {})
+                subscription_service._renewal_tokens[renewal_token] = {
+                    'client_id': user.email or username.value,
+                    'expiry': expiry
+                }
+                
+                # Rediriger vers la page de renouvellement
+                renewal_link = f"/renew-subscription?token={renewal_token}&client_id={user.email or username.value}"
+                logger.info(f"Redirecting to renewal page: {renewal_link}")
+                ui.navigate.to(renewal_link)
                 return
             
             logger.info(f"✓ USER LOGGED IN: {user.username} (session: {session_id})")

@@ -150,28 +150,8 @@ class AuthPanel:
                 # Vérifier si l'abonnement est expiré
                 if error_message:
                     logger.warning(f"Login blocked for {username}: {error_message}")
-                    # Créer un token de prolongation et rediriger
-                    from erp.services.subscription_service import get_subscription_service
-                    subscription_service = get_subscription_service()
-                    
-                    # Générer un token de prolongation
-                    import uuid
-                    from datetime import datetime, timedelta
-                    
-                    renewal_token = str(uuid.uuid4())
-                    expiry = datetime.now() + timedelta(hours=24)
-                    
-                    subscription_service._renewal_tokens = getattr(subscription_service, '_renewal_tokens', {})
-                    subscription_service._renewal_tokens[renewal_token] = {
-                        'client_id': user.email or username,
-                        'expiry': expiry
-                    }
-                    
-                    # Rediriger vers la page de renouvellement interne via JavaScript
-                    renewal_link = f"/renew-subscription?token={renewal_token}&client_id={user.email or username}"
-                    logger.info(f"Redirecting to renewal page: {renewal_link}")
-                    ui.run_javascript(f"window.location.href = '{renewal_link}'")
-                    return
+                    # Retourner l'erreur, le main.py s'occupera de la redirection
+                    return user, "", error_message
                 
                 # Connexion réussie
                 logger.info(f"User logged in: {username}")
@@ -226,28 +206,8 @@ class AuthPanel:
                 # Vérifier si l'abonnement est expiré (peu probable lors de l'inscription, mais par sécurité)
                 if error_message:
                     logger.warning(f"Registration blocked for {username}: {error_message}")
-                    # Créer un token de prolongation et rediriger
-                    from erp.services.subscription_service import get_subscription_service
-                    subscription_service = get_subscription_service()
-                    
-                    # Générer un token de prolongation
-                    import uuid
-                    from datetime import datetime, timedelta
-                    
-                    renewal_token = str(uuid.uuid4())
-                    expiry = datetime.now() + timedelta(hours=24)
-                    
-                    subscription_service._renewal_tokens = getattr(subscription_service, '_renewal_tokens', {})
-                    subscription_service._renewal_tokens[renewal_token] = {
-                        'client_id': email,
-                        'expiry': expiry
-                    }
-                    
-                    # Rediriger vers la page de renouvellement interne via JavaScript
-                    renewal_link = f"/renew-subscription?token={renewal_token}&client_id={email}"
-                    logger.info(f"Redirecting to renewal page: {renewal_link}")
-                    ui.run_javascript(f"window.location.href = '{renewal_link}'")
-                    return
+                    # Retourner l'erreur, le main.py s'occupera de la redirection
+                    return user, "", error_message
                 
                 # Inscription réussie
                 logger.info(f"User registered: {username}")
