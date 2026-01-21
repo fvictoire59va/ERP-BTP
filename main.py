@@ -740,90 +740,61 @@ def renew_subscription_page(request: Request):
             ui.label('Votre abonnement a expiré').classes('text-3xl font-bold text-center mb-2 text-orange-600')
             ui.label('Choisissez un plan pour continuer à utiliser ERP BTP').classes('text-lg text-center mb-8 text-gray-600')
             
-            # Conteneur pour les plans
-            plans_container = ui.row().classes('w-full justify-center gap-6 mb-8')
-            
-            # Récupérer les plans depuis le service Stripe
+            # Configuration des Buy Buttons Stripe
             from erp.services.stripe_service import get_stripe_service
             stripe_service = get_stripe_service()
-            plans = stripe_service.get_plans()
             
-            selected_plan = {'value': None}
-            plan_cards = {}
+            # Configuration des Buy Button IDs pour chaque plan
+            # À créer dans Stripe Dashboard: https://dashboard.stripe.com/products/create
+            buy_buttons = {
+                'mensuel': {
+                    'button_id': 'buy_btn_mensuel_12345',  # À remplacer par votre vrai ID
+                    'name': 'Abonnement Mensuel',
+                    'price': '49€/mois',
+                    'badge': None,
+                },
+                'annuel': {
+                    'button_id': 'buy_btn_1Ss6CFB0rlCfGOCz6fVT386J',  # Votre ID fourni
+                    'name': 'Abonnement Annuel',
+                    'price': '499€/an',
+                    'badge': '🏆 Meilleur rapport qualité/prix',
+                }
+            }
+            
+            # Charger le script Stripe Buy Button une seule fois
+            ui.html('''
+            <script async src="https://js.stripe.com/v3/buy-button.js"></script>
+            ''', sanitize=False)
+            
+            # Conteneur pour les plans
+            plans_container = ui.column().classes('w-full items-center gap-6 mb-8')
             
             with plans_container:
-                for plan_id, plan_info in plans.items():
-                    with ui.card().classes('w-72 p-6 cursor-pointer transition-all hover:shadow-lg border-2 border-transparent') as card:
-                        plan_cards[plan_id] = card
+                for plan_id, button_config in buy_buttons.items():
+                    with ui.card().classes('w-full max-w-md p-6 shadow-md hover:shadow-lg transition-shadow'):
+                        # Badge
+                        if button_config['badge']:
+                            ui.badge(button_config['badge'], color='green').classes('mb-4')
                         
-                        # Badge pour le plan recommandé
-                        if plan_id == 'annuel':
-                            ui.badge('🏆 Meilleur rapport qualité/prix', color='green').classes('mb-4')
+                        # Titre et prix
+                        ui.label(button_config['name']).classes('text-xl font-bold mb-2')
+                        ui.label(button_config['price']).classes('text-2xl font-bold text-blue-600 mb-4')
                         
-                        ui.label(plan_info['name']).classes('text-xl font-bold mb-2')
-                        ui.label(plan_info['price_display']).classes('text-3xl font-bold text-blue-600 mb-4')
-                        
-                        if plan_id == 'annuel':
-                            # Calculer l'économie
-                            monthly_yearly = plans['mensuel']['price'] * 12
-                            savings = monthly_yearly - plan_info['price']
-                            ui.label(f'💰 Économisez {savings:.0f}€/an').classes('text-green-600 text-sm mb-4')
-                        else:
-                            ui.label(f'{plan_info["duration_days"]} jours').classes('text-gray-500 text-sm mb-4')
-                        
-                        # Fonctionnalités
-                        with ui.column().classes('gap-2 mb-6'):
-                            for feature in plan_info['features']:
-                                with ui.row().classes('items-center gap-2'):
-                                    ui.html('<span style="color: green;">✓</span>', sanitize=False)
-                                    ui.label(feature).classes('text-sm text-gray-600')
-                        
-                        def select_plan(p=plan_id, c=card):
-                            selected_plan['value'] = p
-                            # Mettre à jour les styles
-                            for pid, pcard in plan_cards.items():
-                                if pid == p:
-                                    pcard.classes('border-blue-500 bg-blue-50', remove='border-transparent')
-                                else:
-                                    pcard.classes('border-transparent', remove='border-blue-500 bg-blue-50')
-                        
-                        card.on('click', select_plan)
+                        # Injecter le Stripe Buy Button
+                        button_html = f'''
+                        <stripe-buy-button
+                            buy-button-id="{button_config['button_id']}"
+                            publishable-key="{stripe_service.get_publishable_key()}"
+                        >
+                        </stripe-buy-button>
+                        '''
+                        ui.html(button_html, sanitize=False)
             
-            # Message d'erreur
-            error_label = ui.label('').classes('text-red-500 text-center mb-4')
-            error_label.visible = False
-            
-            # Boutons d'action
-            with ui.row().classes('w-full justify-center gap-4'):
-                async def proceed_to_payment():
-                    if not selected_plan['value']:
-                        error_label.text = 'Veuillez sélectionner un plan'
-                        error_label.visible = True
-                        return
-                    
-                    error_label.visible = False
-                    
-                    # Créer la session Stripe
-                    checkout_url, error = stripe_service.create_checkout_session(
-                        plan=selected_plan['value'],
-                        client_id=client_id or 'unknown',
-                        client_email=client_id if client_id and '@' in client_id else f'{client_id}@client.erp-btp.fr'
-                    )
-                    
-                    if checkout_url:
-                        logger.info(f"Redirecting to Stripe checkout: {checkout_url}")
-                        ui.run_javascript(f'window.location.href = "{checkout_url}"')
-                    else:
-                        error_label.text = f'Erreur: {error}'
-                        error_label.visible = True
-                
-                ui.button('💳 Procéder au paiement', on_click=proceed_to_payment).classes(
-                    'px-8 py-3 text-lg'
-                ).style('background-color: #4CAF50; color: white; font-weight: bold;')
-                
-                ui.button('Retour', on_click=lambda: ui.navigate.to('/login')).classes(
-                    'px-8 py-3 text-lg bg-gray-400'
-                )
+            # Bouton Retour
+            with ui.row().classes('w-full justify-center mt-6'):
+                ui.button('← Retour à la connexion', on_click=lambda: ui.navigate.to('/login')).classes(
+                    'px-6 py-2'
+                ).style('background-color: #999; color: white;')
             
             # Informations de sécurité
             with ui.row().classes('w-full justify-center mt-8 gap-4 text-gray-500 text-sm'):
