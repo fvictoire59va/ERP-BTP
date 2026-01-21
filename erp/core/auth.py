@@ -3,6 +3,7 @@ Gestionnaire d'authentification et de sessions
 """
 from typing import Optional
 import uuid
+import os
 from datetime import datetime, timedelta
 from erp.core.models import User
 
@@ -166,19 +167,14 @@ class AuthManager:
         from erp.services.subscription_service import get_subscription_service
         subscription_service = get_subscription_service()
         
-        # Si pas de client_id, chercher dans la base des abonnements
+        # Récupérer le client_id depuis les variables d'environnement ou depuis l'utilisateur
         client_id_to_check = user.client_id
-        logger.debug(f"client_id de l'utilisateur: {client_id_to_check}")
         if not client_id_to_check:
-            # Essayer de trouver le client par email ou username
-            email_to_search = user.email if user.email else username
-            client_id_to_check = subscription_service.get_client_id_by_email(email_to_search)
-            
-            if client_id_to_check:
-                # Mettre à jour l'utilisateur avec le client_id trouvé
-                user.client_id = client_id_to_check
-                self.dm.update_user(user)
-                logger.info(f"Client_id trouvé et mis à jour pour '{username}': {client_id_to_check}")
+            # Utiliser CLIENT_ID depuis les variables d'environnement
+            client_id_to_check = os.getenv('CLIENT_ID')
+            logger.debug(f"Utilisation de CLIENT_ID depuis l'environnement: {client_id_to_check}")
+        
+        logger.debug(f"client_id pour vérification d'abonnement: {client_id_to_check}")
         
         # Vérifier l'abonnement si le client_id est défini
         if client_id_to_check:
@@ -189,7 +185,7 @@ class AuthManager:
                 # Retourner l'utilisateur, un session_id vide et le message d'erreur
                 return user, "", error_message
         else:
-            logger.warning(f"Aucun client_id trouvé pour '{username}', vérification d'abonnement ignorée")
+            logger.warning(f"CLIENT_ID non configuré, vérification d'abonnement ignorée")
         
         # Mise à jour de la dernière connexion
         user.update_last_login()
