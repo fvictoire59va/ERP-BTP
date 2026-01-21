@@ -88,13 +88,10 @@ class SubscriptionService:
                 SELECT 
                     id,
                     client_id,
-                    plan,
-                    prix_mensuel,
-                    date_debut,
-                    date_fin,
+                    date_fin_essai,
                     statut,
-                    periode_essai,
-                    date_fin_essai
+                    date_creation,
+                    date_modification
                 FROM abonnements
                 WHERE client_id = %s
             """
@@ -108,34 +105,25 @@ class SubscriptionService:
             
             # Récupérer les informations d'abonnement
             statut_actuel = abonnement['statut']
-            periode_essai = abonnement.get('periode_essai', False)
             date_fin_essai = abonnement.get('date_fin_essai')
-            date_fin = abonnement.get('date_fin')
             
-            date_maintenant = datetime.now()
+            date_maintenant = datetime.now().date()  # Utiliser .date() pour comparer avec DATE
             
-            # Vérifier si en période d'essai
-            if periode_essai and date_fin_essai:
-                # Convertir la date en datetime si nécessaire
+            # Vérifier si le statut est suspendu
+            if statut_actuel == 'suspendu':
+                logger.warning(f"Tentative de connexion avec compte suspendu: {client_id}")
+                return False, "Votre compte est suspendu. Veuillez renouveler votre abonnement."
+            
+            # Vérifier la date de fin d'essai/abonnement
+            if date_fin_essai:
+                # Convertir la date en date si nécessaire
                 if isinstance(date_fin_essai, str):
-                    date_fin_essai = datetime.strptime(date_fin_essai, '%Y-%m-%d %H:%M:%S')
+                    date_fin_essai = datetime.strptime(date_fin_essai, '%Y-%m-%d').date()
+                elif hasattr(date_fin_essai, 'date'):  # Si c'est un datetime
+                    date_fin_essai = date_fin_essai.date()
                 
+                # Comparer les dates
                 if date_fin_essai < date_maintenant:
-                    if statut_actuel != 'suspendu':
-                        # Mettre à jour le statut à suspendu
-                        self._update_subscription_status(cursor, abonnement['id'], 'suspendu')
-                        conn.commit()
-                        logger.warning(f"Période d'essai expirée pour {client_id}, statut mis à jour à 'suspendu'")
-                    
-                    return False, "Votre période d'essai a expiré. Veuillez souscrire à un abonnement."
-            
-            # Vérifier la date de fin d'abonnement
-            if date_fin:
-                # Convertir la date en datetime si nécessaire
-                if isinstance(date_fin, str):
-                    date_fin = datetime.strptime(date_fin, '%Y-%m-%d %H:%M:%S')
-                
-                if date_fin < date_maintenant:
                     if statut_actuel != 'suspendu':
                         # Mettre à jour le statut à suspendu
                         self._update_subscription_status(cursor, abonnement['id'], 'suspendu')
@@ -144,14 +132,8 @@ class SubscriptionService:
                     
                     return False, "Votre abonnement a expiré. Veuillez renouveler votre abonnement."
             
-            # Vérifier si le statut est suspendu
-            if statut_actuel == 'suspendu':
-                logger.warning(f"Tentative de connexion avec compte suspendu: {client_id}")
-                return False, "Votre compte est suspendu. Veuillez renouveler votre abonnement."
-            
-            # L'abonnement est actif
-            plan = abonnement.get('plan', 'N/A')
-            logger.info(f"Abonnement actif pour le client {client_id} (Plan: {plan})")
+            # L'abonnement est actif (statut != 'suspendu' et date_fin_essai >= aujourd'hui)
+            logger.info(f"Abonnement actif pour le client {client_id} (Expire le: {date_fin_essai})")
             return True, None
             
         except psycopg2.Error as e:
