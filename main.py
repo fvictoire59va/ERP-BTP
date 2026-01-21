@@ -761,10 +761,10 @@ def renew_subscription_page(request: Request):
                 }
             }
             
-            # Charger le script Stripe Buy Button une seule fois
-            ui.html('''
+            # Charger le script Stripe Buy Button une seule fois (script must be added to body)
+            ui.add_body_html('''
             <script async src="https://js.stripe.com/v3/buy-button.js"></script>
-            ''', sanitize=False)
+            ''')
             
             # Conteneur pour les plans
             plans_container = ui.column().classes('w-full items-center gap-6 mb-8')
