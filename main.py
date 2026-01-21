@@ -748,13 +748,13 @@ def renew_subscription_page(request: Request):
             # À créer dans Stripe Dashboard: https://dashboard.stripe.com/products/create
             buy_buttons = {
                 'mensuel': {
-                    'button_id': 'buy_btn_mensuel_12345',  # À remplacer par votre vrai ID
+                    'button_id': 'prod_TpgkzFs9fm8pMi',  # À remplacer par votre vrai ID
                     'name': 'Abonnement Mensuel',
                     'price': '49€/mois',
                     'badge': None,
                 },
                 'annuel': {
-                    'button_id': 'buy_btn_1Ss6CFB0rlCfGOCz6fVT386J',  # Votre ID fourni
+                    'button_id': 'prod_Tpk9Fl1tL2Kwns',  # Votre ID fourni
                     'name': 'Abonnement Annuel',
                     'price': '499€/an',
                     'badge': '🏆 Meilleur rapport qualité/prix',
