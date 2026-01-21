@@ -150,8 +150,11 @@ class AuthPanel:
                 # Vérifier si l'abonnement est expiré
                 if error_message:
                     logger.warning(f"Login blocked for {username}: {error_message}")
-                    # Retourner l'erreur, le main.py s'occupera de la redirection
-                    return user, "", error_message
+                    # Rediriger vers la page de renouvellement d'abonnement
+                    # Utiliser l'email si disponible, sinon le username
+                    client_id = user.email if user.email else username
+                    ui.navigate.to(f'/renew-subscription?client_id={client_id}')
+                    return
                 
                 # Connexion réussie
                 logger.info(f"User logged in: {username}")
