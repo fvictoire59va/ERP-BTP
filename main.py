@@ -324,9 +324,9 @@ def init_styles():
 # Routes API qui n'ont pas besoin d'authentification
 def is_api_route(path: str) -> bool:
     """Vérifier si c'est une route API publique"""
-    return path.startswith('/api/subscriptions/')
+    return path.startswith('/api/subscriptions/') or path.startswith('/api/stripe/')
 
-unrestricted_page_routes = {'/login', '/reset-password', '/forgot-password', '/welcome', '/renew-subscription'}
+unrestricted_page_routes = {'/login', '/reset-password', '/forgot-password', '/welcome', '/renew-subscription', '/payment-success', '/payment-cancelled', '/pricing'}
 
 # Créer une instance globale de l'AuthManager (partagée entre toutes les pages)
 from erp.core.auth import AuthManager
@@ -718,69 +718,280 @@ def login_page(redirect_to: str = '/'):
 # Page de renouvellement d'abonnement
 @ui.page('/renew-subscription')
 def renew_subscription_page(request: Request):
-    """Page pour renouveler un abonnement expiré"""
+    """Page pour renouveler un abonnement expiré avec choix du plan"""
     from erp.utils.logger import get_logger
     logger = get_logger('main')
     
     logger.info("=== RENEW SUBSCRIPTION PAGE CALLED ===")
     
-    # Récupérer le token depuis les paramètres URL
+    # Récupérer les paramètres URL
     renewal_token = request.query_params.get('token')
     client_id = request.query_params.get('client_id')
     
     # Initialiser les styles
     init_styles()
     
-    with ui.column().classes('w-full h-full items-center justify-center bg-gray-100') as container:
-        with ui.card().classes('w-96 p-6'):
-            ui.label('Renouveler mon abonnement').classes('text-2xl font-bold mb-4')
+    with ui.column().classes('w-full min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-8'):
+        with ui.card().classes('w-full max-w-4xl p-8 shadow-xl'):
+            # En-tête
+            with ui.row().classes('w-full justify-center mb-6'):
+                ui.html('<div style="font-size: 48px;">⚠️</div>')
             
-            if not renewal_token:
-                ui.label('❌ Lien de renouvellement invalide ou manquant').classes('text-red-600 mb-4')
-                ui.button('Retour à la connexion', on_click=lambda: nicegui_app.navigate('/login')).classes('w-full')
-                return
+            ui.label('Votre abonnement a expiré').classes('text-3xl font-bold text-center mb-2 text-orange-600')
+            ui.label('Choisissez un plan pour continuer à utiliser ERP BTP').classes('text-lg text-center mb-8 text-gray-600')
             
-            # Afficher les informations
-            ui.label('Votre abonnement a expiré.').classes('text-gray-600 mb-4')
-            ui.label('Cliquez sur le bouton ci-dessous pour prolonger votre abonnement de 30 jours.').classes('text-sm text-gray-500 mb-6')
+            # Conteneur pour les plans
+            plans_container = ui.row().classes('w-full justify-center gap-6 mb-8')
             
-            result_label = ui.label('').classes('text-sm mb-4')
-            result_label.visible = False
+            # Récupérer les plans depuis le service Stripe
+            from erp.services.stripe_service import get_stripe_service
+            stripe_service = get_stripe_service()
+            plans = stripe_service.get_plans()
             
-            async def renew_subscription():
-                """Effectue le renouvellement"""
-                from erp.services.subscription_service import get_subscription_service
-                
-                try:
-                    # Appeler le service de renouvellement
-                    subscription_service = get_subscription_service()
-                    success, error_message = subscription_service.renew_subscription(renewal_token)
+            selected_plan = {'value': None}
+            plan_cards = {}
+            
+            with plans_container:
+                for plan_id, plan_info in plans.items():
+                    with ui.card().classes('w-72 p-6 cursor-pointer transition-all hover:shadow-lg border-2 border-transparent') as card:
+                        plan_cards[plan_id] = card
+                        
+                        # Badge pour le plan recommandé
+                        if plan_id == 'annuel':
+                            ui.badge('🏆 Meilleur rapport qualité/prix', color='green').classes('mb-4')
+                        
+                        ui.label(plan_info['name']).classes('text-xl font-bold mb-2')
+                        ui.label(plan_info['price_display']).classes('text-3xl font-bold text-blue-600 mb-4')
+                        
+                        if plan_id == 'annuel':
+                            # Calculer l'économie
+                            monthly_yearly = plans['mensuel']['price'] * 12
+                            savings = monthly_yearly - plan_info['price']
+                            ui.label(f'💰 Économisez {savings:.0f}€/an').classes('text-green-600 text-sm mb-4')
+                        else:
+                            ui.label(f'{plan_info["duration_days"]} jours').classes('text-gray-500 text-sm mb-4')
+                        
+                        # Fonctionnalités
+                        with ui.column().classes('gap-2 mb-6'):
+                            for feature in plan_info['features']:
+                                with ui.row().classes('items-center gap-2'):
+                                    ui.html('<span style="color: green;">✓</span>')
+                                    ui.label(feature).classes('text-sm text-gray-600')
+                        
+                        def select_plan(p=plan_id, c=card):
+                            selected_plan['value'] = p
+                            # Mettre à jour les styles
+                            for pid, pcard in plan_cards.items():
+                                if pid == p:
+                                    pcard.classes('border-blue-500 bg-blue-50', remove='border-transparent')
+                                else:
+                                    pcard.classes('border-transparent', remove='border-blue-500 bg-blue-50')
+                        
+                        card.on('click', select_plan)
+            
+            # Message d'erreur
+            error_label = ui.label('').classes('text-red-500 text-center mb-4')
+            error_label.visible = False
+            
+            # Boutons d'action
+            with ui.row().classes('w-full justify-center gap-4'):
+                async def proceed_to_payment():
+                    if not selected_plan['value']:
+                        error_label.text = 'Veuillez sélectionner un plan'
+                        error_label.visible = True
+                        return
                     
-                    if success:
-                        result_label.text = '✅ Votre abonnement a été renouvelé avec succès !'
-                        result_label.classes('text-green-600', remove='text-red-600')
-                        result_label.visible = True
-                        
-                        logger.info(f"Subscription renewed successfully for client {client_id}")
-                        
-                        # Afficher le bouton de retour à la connexion
-                        await asyncio.sleep(2)
-                        nicegui_app.navigate('/login')
+                    error_label.visible = False
+                    
+                    # Créer la session Stripe
+                    checkout_url, error = stripe_service.create_checkout_session(
+                        plan=selected_plan['value'],
+                        client_id=client_id or 'unknown',
+                        client_email=client_id if client_id and '@' in client_id else f'{client_id}@client.erp-btp.fr'
+                    )
+                    
+                    if checkout_url:
+                        logger.info(f"Redirecting to Stripe checkout: {checkout_url}")
+                        ui.run_javascript(f'window.location.href = "{checkout_url}"')
                     else:
-                        result_label.text = f'❌ Erreur: {error_message}'
-                        result_label.classes('text-red-600')
-                        result_label.visible = True
-                        logger.warning(f"Subscription renewal failed: {error_message}")
-                        
-                except Exception as e:
-                    result_label.text = f'❌ Erreur lors du renouvellement: {str(e)}'
-                    result_label.classes('text-red-600')
-                    result_label.visible = True
-                    logger.error(f"Error renewing subscription: {e}", exc_info=True)
+                        error_label.text = f'Erreur: {error}'
+                        error_label.visible = True
+                
+                ui.button('💳 Procéder au paiement', on_click=proceed_to_payment).classes(
+                    'px-8 py-3 text-lg'
+                ).style('background-color: #4CAF50; color: white; font-weight: bold;')
+                
+                ui.button('Retour', on_click=lambda: ui.navigate.to('/login')).classes(
+                    'px-8 py-3 text-lg bg-gray-400'
+                )
             
-            with ui.row().classes('w-full gap-2'):
-                ui.button('Renouveler mon abonnement', on_click=renew_subscription).classes('flex-1 bg-green-600')
-                ui.button('Annuler', on_click=lambda: nicegui_app.navigate('/login')).classes('flex-1 bg-gray-400')
+            # Informations de sécurité
+            with ui.row().classes('w-full justify-center mt-8 gap-4 text-gray-500 text-sm'):
+                ui.html('🔒 Paiement sécurisé par Stripe')
+                ui.html('|')
+                ui.html('💳 Cartes Visa, Mastercard, Amex acceptées')
+    
+    return None
+
+
+# Page de succès de paiement
+@ui.page('/payment-success')
+def payment_success_page(request: Request):
+    """Page affichée après un paiement réussi"""
+    from erp.utils.logger import get_logger
+    logger = get_logger('main')
+    
+    session_id = request.query_params.get('session_id')
+    
+    init_styles()
+    
+    with ui.column().classes('w-full h-screen items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100'):
+        with ui.card().classes('w-[500px] p-8 shadow-xl text-center'):
+            ui.html('<div style="font-size: 64px;">🎉</div>')
+            
+            ui.label('Paiement réussi !').classes('text-3xl font-bold text-green-600 mb-4')
+            ui.label('Merci pour votre confiance.').classes('text-xl text-gray-700 mb-2')
+            ui.label('Votre abonnement a été activé avec succès.').classes('text-gray-600 mb-6')
+            
+            # Récupérer les détails de la session si disponible
+            if session_id:
+                try:
+                    from erp.services.stripe_service import get_stripe_service
+                    stripe_service = get_stripe_service()
+                    details = stripe_service.get_session_details(session_id)
+                    
+                    if details:
+                        with ui.card().classes('w-full p-4 bg-green-50 mb-6'):
+                            ui.label('Détails du paiement').classes('font-semibold mb-2')
+                            ui.label(f"Montant: {details.get('amount_total', 0) / 100:.2f}€").classes('text-sm')
+                            ui.label(f"Email: {details.get('customer_email', 'N/A')}").classes('text-sm')
+                except Exception as e:
+                    logger.error(f"Error fetching session details: {e}")
+            
+            ui.button('Se connecter', on_click=lambda: ui.navigate.to('/login')).classes('w-full').style(
+                'background-color: #4CAF50; color: white; padding: 12px; font-size: 16px; font-weight: bold;'
+            )
+            
+            logger.info(f"Payment success page displayed for session: {session_id}")
+    
+    return None
+
+
+# Page d'annulation de paiement
+@ui.page('/payment-cancelled')
+def payment_cancelled_page():
+    """Page affichée après annulation d'un paiement"""
+    from erp.utils.logger import get_logger
+    logger = get_logger('main')
+    
+    init_styles()
+    
+    with ui.column().classes('w-full h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100'):
+        with ui.card().classes('w-[500px] p-8 shadow-xl text-center'):
+            ui.html('<div style="font-size: 64px;">😕</div>')
+            
+            ui.label('Paiement annulé').classes('text-3xl font-bold text-gray-600 mb-4')
+            ui.label('Vous avez annulé le processus de paiement.').classes('text-gray-600 mb-6')
+            
+            with ui.row().classes('w-full gap-4 justify-center'):
+                ui.button('Réessayer', on_click=lambda: ui.navigate.to('/renew-subscription')).style(
+                    'background-color: #2196F3; color: white; padding: 12px 24px;'
+                )
+                ui.button('Retour', on_click=lambda: ui.navigate.to('/login')).style(
+                    'background-color: #9e9e9e; color: white; padding: 12px 24px;'
+                )
+            
+            logger.info("Payment cancelled page displayed")
+    
+    return None
+
+
+# Page de tarification (accessible sans connexion)
+@ui.page('/pricing')
+def pricing_page():
+    """Page publique affichant les tarifs"""
+    from erp.utils.logger import get_logger
+    logger = get_logger('main')
+    
+    init_styles()
+    
+    with ui.column().classes('w-full min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100'):
+        # Header
+        with ui.row().classes('w-full p-6 justify-between items-center'):
+            ui.label('ERP BTP').classes('text-2xl font-bold text-blue-600')
+            ui.button('Se connecter', on_click=lambda: ui.navigate.to('/login')).classes('bg-blue-600')
+        
+        # Contenu principal
+        with ui.column().classes('w-full items-center p-8'):
+            ui.label('Tarifs').classes('text-4xl font-bold mb-2')
+            ui.label('Choisissez le plan adapté à vos besoins').classes('text-xl text-gray-600 mb-12')
+            
+            # Récupérer les plans
+            from erp.services.stripe_service import get_stripe_service
+            stripe_service = get_stripe_service()
+            plans = stripe_service.get_plans()
+            
+            with ui.row().classes('w-full max-w-4xl justify-center gap-8'):
+                for plan_id, plan_info in plans.items():
+                    is_popular = plan_id == 'annuel'
+                    
+                    with ui.card().classes(f'w-80 p-8 {"shadow-xl border-2 border-blue-500" if is_popular else "shadow-lg"}'):
+                        if is_popular:
+                            ui.badge('POPULAIRE', color='blue').classes('mb-4')
+                        
+                        ui.label(plan_info['name']).classes('text-2xl font-bold mb-4')
+                        
+                        with ui.row().classes('items-end mb-6'):
+                            ui.label(f"{plan_info['price']:.0f}€").classes('text-4xl font-bold text-blue-600')
+                            period = '/mois' if plan_id == 'mensuel' else '/an'
+                            ui.label(period).classes('text-gray-500 ml-1 mb-1')
+                        
+                        if plan_id == 'annuel':
+                            monthly_yearly = plans['mensuel']['price'] * 12
+                            savings = monthly_yearly - plan_info['price']
+                            ui.label(f'💰 Économisez {savings:.0f}€/an').classes('text-green-600 mb-6')
+                        
+                        with ui.column().classes('gap-3 mb-8'):
+                            for feature in plan_info['features']:
+                                with ui.row().classes('items-center gap-2'):
+                                    ui.html('<span style="color: #4CAF50; font-size: 18px;">✓</span>')
+                                    ui.label(feature).classes('text-gray-600')
+                        
+                        ui.button(
+                            'Commencer maintenant',
+                            on_click=lambda: ui.navigate.to('/login')
+                        ).classes('w-full').style(
+                            f'background-color: {"#2196F3" if is_popular else "#e0e0e0"}; '
+                            f'color: {"white" if is_popular else "#333"};'
+                        )
+            
+            # Section FAQ
+            with ui.column().classes('w-full max-w-2xl mt-16'):
+                ui.label('Questions fréquentes').classes('text-2xl font-bold mb-6 text-center')
+                
+                with ui.expansion('Comment fonctionne la période d\'essai ?').classes('w-full mb-2'):
+                    ui.label(
+                        'Vous bénéficiez de 30 jours d\'essai gratuit avec un accès complet à toutes les '
+                        'fonctionnalités. Aucune carte bancaire n\'est requise pour commencer.'
+                    )
+                
+                with ui.expansion('Puis-je changer de plan ?').classes('w-full mb-2'):
+                    ui.label(
+                        'Oui, vous pouvez passer du plan mensuel au plan annuel à tout moment. '
+                        'Le changement prendra effet à la fin de votre période de facturation actuelle.'
+                    )
+                
+                with ui.expansion('Quels moyens de paiement acceptez-vous ?').classes('w-full mb-2'):
+                    ui.label(
+                        'Nous acceptons les cartes Visa, Mastercard et American Express via notre '
+                        'partenaire de paiement sécurisé Stripe.'
+                    )
+                
+                with ui.expansion('Puis-je annuler mon abonnement ?').classes('w-full mb-2'):
+                    ui.label(
+                        'Oui, vous pouvez annuler votre abonnement à tout moment depuis les paramètres '
+                        'de votre compte. Vous conserverez l\'accès jusqu\'à la fin de votre période payée.'
+                    )
     
     return None
 
@@ -971,6 +1182,174 @@ def main():
                 'active': False,
                 'message': f'Erreur serveur: {str(e)}'
             }
+    
+    # ==================== STRIPE API ROUTES ====================
+    
+    @nicegui_app.post("/api/stripe/create-checkout-session")
+    async def create_stripe_checkout(request):
+        """
+        Crée une session de paiement Stripe Checkout
+        
+        Body:
+            {
+                "plan": "mensuel" | "annuel",
+                "client_id": str,
+                "client_email": str
+            }
+        
+        Response:
+            {
+                "success": bool,
+                "checkout_url": str (si succès),
+                "error": str (si erreur)
+            }
+        """
+        try:
+            from erp.services.stripe_service import get_stripe_service
+            from erp.utils.logger import get_logger
+            
+            logger = get_logger(__name__)
+            
+            body = await request.json()
+            plan = body.get('plan')
+            client_id = body.get('client_id')
+            client_email = body.get('client_email')
+            
+            if not all([plan, client_id, client_email]):
+                return {
+                    'success': False,
+                    'error': 'plan, client_id et client_email sont requis'
+                }
+            
+            stripe_service = get_stripe_service()
+            checkout_url, error = stripe_service.create_checkout_session(
+                plan=plan,
+                client_id=client_id,
+                client_email=client_email
+            )
+            
+            if checkout_url:
+                logger.info(f"Checkout session created for {client_id}, plan: {plan}")
+                return {
+                    'success': True,
+                    'checkout_url': checkout_url
+                }
+            else:
+                logger.warning(f"Failed to create checkout: {error}")
+                return {
+                    'success': False,
+                    'error': error
+                }
+                
+        except Exception as e:
+            from erp.utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Error in create_stripe_checkout: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': f'Erreur serveur: {str(e)}'
+            }
+    
+    @nicegui_app.get("/api/stripe/plans")
+    async def get_stripe_plans():
+        """
+        Retourne les plans d'abonnement disponibles
+        
+        Response:
+            {
+                "plans": {
+                    "mensuel": {...},
+                    "annuel": {...}
+                }
+            }
+        """
+        try:
+            from erp.services.stripe_service import get_stripe_service
+            
+            stripe_service = get_stripe_service()
+            return {
+                'plans': stripe_service.get_plans()
+            }
+        except Exception as e:
+            return {
+                'error': str(e)
+            }
+    
+    @nicegui_app.get("/api/stripe/config")
+    async def get_stripe_config():
+        """
+        Retourne la configuration Stripe pour le frontend
+        
+        Response:
+            {
+                "publishable_key": str,
+                "configured": bool
+            }
+        """
+        try:
+            from erp.services.stripe_service import get_stripe_service
+            
+            stripe_service = get_stripe_service()
+            return {
+                'publishable_key': stripe_service.get_publishable_key(),
+                'configured': stripe_service.is_configured()
+            }
+        except Exception as e:
+            return {
+                'publishable_key': '',
+                'configured': False,
+                'error': str(e)
+            }
+    
+    @nicegui_app.post("/api/stripe/webhook")
+    async def stripe_webhook(request):
+        """
+        Endpoint pour recevoir les webhooks Stripe
+        
+        Traite les événements:
+        - checkout.session.completed: Paiement réussi
+        """
+        try:
+            from erp.services.stripe_service import get_stripe_service
+            from erp.utils.logger import get_logger
+            
+            logger = get_logger(__name__)
+            
+            # Récupérer le payload et la signature
+            payload = await request.body()
+            signature = request.headers.get('Stripe-Signature', '')
+            
+            stripe_service = get_stripe_service()
+            event, error = stripe_service.verify_webhook_signature(payload, signature)
+            
+            if error:
+                logger.warning(f"Webhook signature invalid: {error}")
+                return JSONResponse({'error': error}, status_code=400)
+            
+            # Traiter l'événement
+            event_type = event.get('type')
+            logger.info(f"Webhook received: {event_type}")
+            
+            if event_type == 'checkout.session.completed':
+                session = event.get('data', {}).get('object', {})
+                success, error_msg = stripe_service.handle_checkout_completed(session)
+                
+                if success:
+                    logger.info(f"Checkout completed successfully")
+                    return {'status': 'success'}
+                else:
+                    logger.error(f"Checkout handling failed: {error_msg}")
+                    return JSONResponse({'error': error_msg}, status_code=500)
+            
+            # Autres événements (logging uniquement)
+            logger.info(f"Unhandled webhook event: {event_type}")
+            return {'status': 'received'}
+            
+        except Exception as e:
+            from erp.utils.logger import get_logger
+            logger = get_logger(__name__)
+            logger.error(f"Webhook error: {e}", exc_info=True)
+            return JSONResponse({'error': str(e)}, status_code=500)
     
     # ==================== MIDDLEWARE ====================
     @nicegui_app.add_middleware

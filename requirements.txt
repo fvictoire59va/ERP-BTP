@@ -5,3 +5,4 @@ pygwalker
 psycopg2-binary
 sqlalchemy
 python-dotenv
+stripe
