@@ -89,9 +89,7 @@ class SubscriptionService:
                     id,
                     client_id,
                     date_fin_essai,
-                    statut,
-                    date_creation,
-                    date_modification
+                    statut
                 FROM abonnements
                 WHERE client_id = %s
             """
@@ -256,11 +254,11 @@ class SubscriptionService:
             
             # Insérer le log dans la table connexions
             query = """
-                INSERT INTO connexions (client_id, user_id, username, action, timestamp)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO connexions (client_id, username, action, timestamp)
+                VALUES (%s, %s, %s, %s)
             """
             
-            cursor.execute(query, (client_id, user_id, username, action, timestamp))
+            cursor.execute(query, (client_id, username, action, timestamp))
             conn.commit()
             
             logger.info(f"Log de connexion enregistré: {username} - {action} à {timestamp} (client: {client_id})")
