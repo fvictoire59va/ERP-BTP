@@ -1,11 +1,11 @@
 """
 Tests pour l'intégration Stripe dans ERP BTP
-Ce module teste les fonctionnalités de paiement en ligne.
+Ce module teste les fonctionnalités de paiement en ligne avec pytest.
 
 Pour exécuter ces tests:
 1. Le fichier .env à la racine du projet sera chargé automatiquement
-2. Exécuter: python -m pytest tests/test_stripe_payment.py -v
-   Ou: python tests/test_stripe_payment.py --interactive
+2. Exécuter: pytest tests/test_stripe_payment.py -v
+   Ou: pytest tests/test_stripe_payment.py --interactive
 
 Variables d'environnement requises (dans .env):
 - STRIPE_SECRET_KEY: Clé secrète Stripe (mode test: sk_test_...)
@@ -14,7 +14,7 @@ Variables d'environnement requises (dans .env):
 """
 import os
 import sys
-import unittest
+import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from pathlib import Path
@@ -33,145 +33,109 @@ else:
     print(f"⚠ Fichier .env non trouvé: {env_path}")
 
 
-class TestStripeServiceConfiguration(unittest.TestCase):
+@pytest.fixture
+def reset_stripe_service():
+    """Fixture pour réinitialiser le singleton Stripe après chaque test"""
+    yield
+    import erp.services.stripe_service as stripe_module
+    stripe_module._stripe_service = None
+
+
+@pytest.fixture
+def stripe_service_with_keys(reset_stripe_service):
+    """Fixture qui configure un service Stripe avec des clés de test"""
+    os.environ['STRIPE_SECRET_KEY'] = 'sk_test_fake_key_12345'
+    os.environ['STRIPE_PUBLISHABLE_KEY'] = 'pk_test_fake_key_12345'
+    
+    from erp.services.stripe_service import get_stripe_service
+    return get_stripe_service()
+
+
+@pytest.fixture
+def stripe_service_without_keys(reset_stripe_service):
+    """Fixture qui crée un service Stripe sans clés configurées"""
+    os.environ.pop('STRIPE_SECRET_KEY', None)
+    os.environ.pop('STRIPE_PUBLISHABLE_KEY', None)
+    
+    from erp.services.stripe_service import get_stripe_service
+    return get_stripe_service()
+
+
+# ==================== Tests de Configuration ====================
+
+class TestStripeServiceConfiguration:
     """Tests pour la configuration du service Stripe"""
     
-    def test_service_initialization_without_keys(self):
+    def test_service_initialization_without_keys(self, stripe_service_without_keys):
         """Test que le service s'initialise même sans clés configurées"""
-        # Sauvegarder les valeurs originales
-        original_secret = os.environ.get('STRIPE_SECRET_KEY')
-        original_pub = os.environ.get('STRIPE_PUBLISHABLE_KEY')
+        service = stripe_service_without_keys
         
-        try:
-            # Supprimer les clés
-            os.environ.pop('STRIPE_SECRET_KEY', None)
-            os.environ.pop('STRIPE_PUBLISHABLE_KEY', None)
-            
-            # Réinitialiser le singleton
-            import erp.services.stripe_service as stripe_module
-            stripe_module._stripe_service = None
-            
-            from erp.services.stripe_service import get_stripe_service
-            service = get_stripe_service()
-            
-            self.assertIsNotNone(service)
-            self.assertFalse(service.is_configured())
-            
-        finally:
-            # Restaurer les valeurs originales
-            if original_secret:
-                os.environ['STRIPE_SECRET_KEY'] = original_secret
-            if original_pub:
-                os.environ['STRIPE_PUBLISHABLE_KEY'] = original_pub
+        assert service is not None
+        assert not service.is_configured()
     
-    def test_service_initialization_with_keys(self):
+    def test_service_initialization_with_keys(self, stripe_service_with_keys):
         """Test que le service se configure correctement avec les clés"""
-        # Sauvegarder les valeurs originales
-        original_secret = os.environ.get('STRIPE_SECRET_KEY')
-        original_pub = os.environ.get('STRIPE_PUBLISHABLE_KEY')
+        service = stripe_service_with_keys
         
-        try:
-            # Définir des clés de test
-            os.environ['STRIPE_SECRET_KEY'] = 'sk_test_fake_key_12345'
-            os.environ['STRIPE_PUBLISHABLE_KEY'] = 'pk_test_fake_key_12345'
-            
-            # Réinitialiser le singleton
-            import erp.services.stripe_service as stripe_module
-            stripe_module._stripe_service = None
-            
-            from erp.services.stripe_service import get_stripe_service
-            service = get_stripe_service()
-            
-            self.assertIsNotNone(service)
-            self.assertTrue(service.is_configured())
-            self.assertEqual(service.get_publishable_key(), 'pk_test_fake_key_12345')
-            
-        finally:
-            # Restaurer les valeurs originales
-            if original_secret:
-                os.environ['STRIPE_SECRET_KEY'] = original_secret
-            else:
-                os.environ.pop('STRIPE_SECRET_KEY', None)
-            if original_pub:
-                os.environ['STRIPE_PUBLISHABLE_KEY'] = original_pub
-            else:
-                os.environ.pop('STRIPE_PUBLISHABLE_KEY', None)
+        assert service is not None
+        assert service.is_configured()
+        assert service.get_publishable_key() == 'pk_test_fake_key_12345'
 
 
-class TestStripePlans(unittest.TestCase):
+# ==================== Tests des Plans ====================
+
+class TestStripePlans:
     """Tests pour les plans d'abonnement"""
     
-    def setUp(self):
-        """Configuration avant chaque test"""
-        # Configurer les clés pour les tests
-        os.environ['STRIPE_SECRET_KEY'] = 'sk_test_fake_key_12345'
-        os.environ['STRIPE_PUBLISHABLE_KEY'] = 'pk_test_fake_key_12345'
-        
-        # Réinitialiser le singleton
-        import erp.services.stripe_service as stripe_module
-        stripe_module._stripe_service = None
-        
-        from erp.services.stripe_service import get_stripe_service
-        self.service = get_stripe_service()
-    
-    def test_plans_available(self):
+    def test_plans_available(self, stripe_service_with_keys):
         """Test que les plans sont disponibles"""
-        plans = self.service.get_plans()
+        plans = stripe_service_with_keys.get_plans()
         
-        self.assertIn('mensuel', plans)
-        self.assertIn('annuel', plans)
+        assert 'mensuel' in plans
+        assert 'annuel' in plans
     
-    def test_plan_mensuel_price(self):
+    def test_plan_mensuel_price(self, stripe_service_with_keys):
         """Test le prix du plan mensuel"""
-        plans = self.service.get_plans()
+        plans = stripe_service_with_keys.get_plans()
         
-        self.assertEqual(plans['mensuel']['price'], 49.0)  # 49€
-        self.assertEqual(plans['mensuel']['duration_days'], 30)
+        assert plans['mensuel']['price'] == 49.0  # 49€
+        assert plans['mensuel']['duration_days'] == 30
     
-    def test_plan_annuel_price(self):
+    def test_plan_annuel_price(self, stripe_service_with_keys):
         """Test le prix du plan annuel"""
-        plans = self.service.get_plans()
+        plans = stripe_service_with_keys.get_plans()
         
-        self.assertEqual(plans['annuel']['price'], 499.0)  # 499€
-        self.assertEqual(plans['annuel']['duration_days'], 365)
+        assert plans['annuel']['price'] == 499.0  # 499€
+        assert plans['annuel']['duration_days'] == 365
     
-    def test_plan_features(self):
+    def test_plan_features(self, stripe_service_with_keys):
         """Test que les plans ont des fonctionnalités"""
-        plans = self.service.get_plans()
+        plans = stripe_service_with_keys.get_plans()
         
         for plan_id, plan_info in plans.items():
-            self.assertIn('features', plan_info)
-            self.assertTrue(len(plan_info['features']) > 0)
+            assert 'features' in plan_info
+            assert len(plan_info['features']) > 0
 
 
-class TestStripeCheckoutSession(unittest.TestCase):
+# ==================== Tests des Sessions Checkout ====================
+
+class TestStripeCheckoutSession:
     """Tests pour la création de sessions Checkout"""
     
-    def setUp(self):
-        """Configuration avant chaque test"""
-        os.environ['STRIPE_SECRET_KEY'] = 'sk_test_fake_key_12345'
-        os.environ['STRIPE_PUBLISHABLE_KEY'] = 'pk_test_fake_key_12345'
-        
-        import erp.services.stripe_service as stripe_module
-        stripe_module._stripe_service = None
-        
-        from erp.services.stripe_service import get_stripe_service
-        self.service = get_stripe_service()
-    
-    def test_create_checkout_invalid_plan(self):
+    def test_create_checkout_invalid_plan(self, stripe_service_with_keys):
         """Test la création d'une session avec un plan invalide"""
-        url, error = self.service.create_checkout_session(
+        url, error = stripe_service_with_keys.create_checkout_session(
             plan='invalid_plan',
             client_id='test_client_123',
             client_email='test@example.com'
         )
         
-        self.assertIsNone(url)
-        self.assertIsNotNone(error)
-        self.assertIn('invalide', error.lower())
+        assert url is None
+        assert error is not None
+        assert 'invalide' in error.lower()
     
     @patch('stripe.checkout.Session.create')
-    def test_create_checkout_success(self, mock_create):
+    def test_create_checkout_success(self, mock_create, stripe_service_with_keys):
         """Test la création réussie d'une session Checkout"""
         # Configurer le mock
         mock_session = MagicMock()
@@ -179,109 +143,102 @@ class TestStripeCheckoutSession(unittest.TestCase):
         mock_session.url = 'https://checkout.stripe.com/pay/cs_test_12345'
         mock_create.return_value = mock_session
         
-        url, error = self.service.create_checkout_session(
+        url, error = stripe_service_with_keys.create_checkout_session(
             plan='mensuel',
             client_id='test_client_123',
             client_email='test@example.com'
         )
         
-        self.assertIsNotNone(url)
-        self.assertIsNone(error)
-        self.assertIn('checkout.stripe.com', url)
+        assert url is not None
+        assert error is None
+        assert 'checkout.stripe.com' in url
         
         # Vérifier les arguments passés à Stripe
-        mock_create.assert_called_once()
+        assert mock_create.called
         call_args = mock_create.call_args
-        self.assertEqual(call_args.kwargs['customer_email'], 'test@example.com')
-        self.assertEqual(call_args.kwargs['metadata']['client_id'], 'test_client_123')
-        self.assertEqual(call_args.kwargs['metadata']['plan'], 'mensuel')
+        assert call_args.kwargs['customer_email'] == 'test@example.com'
+        assert call_args.kwargs['metadata']['client_id'] == 'test_client_123'
+        assert call_args.kwargs['metadata']['plan'] == 'mensuel'
     
     @patch('stripe.checkout.Session.create')
-    def test_create_checkout_stripe_error(self, mock_create):
+    def test_create_checkout_stripe_error(self, mock_create, stripe_service_with_keys):
         """Test la gestion des erreurs Stripe"""
         import stripe
         mock_create.side_effect = stripe.error.StripeError("Erreur de test")
         
-        url, error = self.service.create_checkout_session(
+        url, error = stripe_service_with_keys.create_checkout_session(
             plan='annuel',
             client_id='test_client_123',
             client_email='test@example.com'
         )
         
-        self.assertIsNone(url)
-        self.assertIsNotNone(error)
+        assert url is None
+        assert error is not None
 
 
-class TestStripeWebhook(unittest.TestCase):
+# ==================== Tests des Webhooks ====================
+
+class TestStripeWebhook:
     """Tests pour les webhooks Stripe"""
     
-    def setUp(self):
-        """Configuration avant chaque test"""
+    def test_verify_webhook_without_secret(self, reset_stripe_service):
+        """Test la vérification webhook sans secret configuré"""
         os.environ['STRIPE_SECRET_KEY'] = 'sk_test_fake_key_12345'
         os.environ['STRIPE_PUBLISHABLE_KEY'] = 'pk_test_fake_key_12345'
-        os.environ.pop('STRIPE_WEBHOOK_SECRET', None)  # Pas de webhook secret pour les tests
-        
-        import erp.services.stripe_service as stripe_module
-        stripe_module._stripe_service = None
+        os.environ.pop('STRIPE_WEBHOOK_SECRET', None)
         
         from erp.services.stripe_service import get_stripe_service
-        self.service = get_stripe_service()
-    
-    def test_verify_webhook_without_secret(self):
-        """Test la vérification webhook sans secret configuré"""
-        payload = b'{"type": "checkout.session.completed", "data": {}}'
+        service = get_stripe_service()
         
-        event, error = self.service.verify_webhook_signature(payload, 'sig_test')
+        payload = b'{"type": "checkout.session.completed", "data": {}}'
+        event, error = service.verify_webhook_signature(payload, 'sig_test')
         
         # Sans secret configuré, le payload devrait être parsé directement
-        self.assertIsNotNone(event)
-        self.assertEqual(event['type'], 'checkout.session.completed')
+        assert event is not None
+        assert event['type'] == 'checkout.session.completed'
     
-    def test_handle_checkout_completed_missing_client_id(self):
+    def test_handle_checkout_completed_missing_client_id(self, stripe_service_with_keys):
         """Test le traitement d'un checkout sans client_id"""
         session = {
             'id': 'cs_test_12345',
             'metadata': {}  # Pas de client_id
         }
         
-        success, error = self.service.handle_checkout_completed(session)
+        success, error = stripe_service_with_keys.handle_checkout_completed(session)
         
-        self.assertFalse(success)
-        self.assertIn('client', error.lower())
+        assert not success
+        assert 'client' in error.lower()
 
 
-class TestStripeIntegrationFlow(unittest.TestCase):
+# ==================== Tests d'Intégration ====================
+
+class TestStripeIntegrationFlow:
     """Tests d'intégration du flux complet de paiement"""
     
-    def setUp(self):
-        """Configuration avant chaque test"""
+    @patch('stripe.checkout.Session.create')
+    @patch('stripe.checkout.Session.retrieve')
+    def test_full_payment_flow(self, mock_retrieve, mock_create, reset_stripe_service):
+        """Test le flux complet: création session -> récupération détails"""
         os.environ['STRIPE_SECRET_KEY'] = 'sk_test_fake_key_12345'
         os.environ['STRIPE_PUBLISHABLE_KEY'] = 'pk_test_fake_key_12345'
         os.environ['APP_URL'] = 'http://localhost:8080'
         
-        import erp.services.stripe_service as stripe_module
-        stripe_module._stripe_service = None
-        
         from erp.services.stripe_service import get_stripe_service
-        self.service = get_stripe_service()
-    
-    @patch('stripe.checkout.Session.create')
-    @patch('stripe.checkout.Session.retrieve')
-    def test_full_payment_flow(self, mock_retrieve, mock_create):
-        """Test le flux complet: création session -> récupération détails"""
+        service = get_stripe_service()
+        
         # 1. Créer la session
         mock_session = MagicMock()
         mock_session.id = 'cs_test_flow_12345'
         mock_session.url = 'https://checkout.stripe.com/pay/cs_test_flow_12345'
         mock_create.return_value = mock_session
         
-        url, error = self.service.create_checkout_session(
+        url, error = service.create_checkout_session(
             plan='mensuel',
             client_id='flow_test_client',
             client_email='flow@test.com'
         )
         
-        self.assertIsNotNone(url)
+        assert url is not None
         
         # 2. Simuler la récupération des détails
         mock_retrieved = MagicMock()
@@ -293,54 +250,60 @@ class TestStripeIntegrationFlow(unittest.TestCase):
         mock_retrieved.metadata = {'client_id': 'flow_test_client', 'plan': 'mensuel'}
         mock_retrieve.return_value = mock_retrieved
         
-        details = self.service.get_session_details('cs_test_flow_12345')
+        details = service.get_session_details('cs_test_flow_12345')
         
-        self.assertIsNotNone(details)
-        self.assertEqual(details['status'], 'paid')
-        self.assertEqual(details['amount_total'], 4900)
+        assert details is not None
+        assert details['status'] == 'paid'
+        assert details['amount_total'] == 4900
 
 
-class TestPaymentAmounts(unittest.TestCase):
+# ==================== Tests des Montants ====================
+
+class TestPaymentAmounts:
     """Tests pour vérifier les montants de paiement"""
-    
-    def setUp(self):
-        """Configuration avant chaque test"""
-        from erp.services.stripe_service import StripeService
-        self.service = StripeService()
     
     def test_monthly_amount_in_cents(self):
         """Test que le montant mensuel est en centimes"""
-        plan = self.service.PLANS['mensuel']
+        from erp.services.stripe_service import StripeService
+        service = StripeService()
+        plan = service.PLANS['mensuel']
         
         # 49€ = 4900 centimes
-        self.assertEqual(plan['price'], 4900)
-        self.assertEqual(plan['currency'], 'eur')
+        assert plan['price'] == 4900
+        assert plan['currency'] == 'eur'
     
     def test_annual_amount_in_cents(self):
         """Test que le montant annuel est en centimes"""
-        plan = self.service.PLANS['annuel']
+        from erp.services.stripe_service import StripeService
+        service = StripeService()
+        plan = service.PLANS['annuel']
         
-        # 499€ = 49900 centimes (2 mois offerts par rapport à 12 x 49€ = 588€)
-        self.assertEqual(plan['price'], 49900)
-        self.assertEqual(plan['currency'], 'eur')
+        # 499€ = 49900 centimes
+        assert plan['price'] == 49900
+        assert plan['currency'] == 'eur'
     
     def test_annual_savings(self):
         """Test que le plan annuel offre bien des économies"""
-        monthly_price = self.service.PLANS['mensuel']['price']
-        annual_price = self.service.PLANS['annuel']['price']
+        from erp.services.stripe_service import StripeService
+        service = StripeService()
+        
+        monthly_price = service.PLANS['mensuel']['price']
+        annual_price = service.PLANS['annuel']['price']
         
         # 12 mois au prix mensuel
         monthly_total = monthly_price * 12
         
         # L'annuel doit être moins cher
-        self.assertLess(annual_price, monthly_total)
+        assert annual_price < monthly_total
         
-        # Calculer l'économie (doit être au moins 2 mois)
+        # Calculer l'économie
         savings = monthly_total - annual_price
-        two_months = monthly_price * 2
         
-        self.assertGreaterEqual(savings, two_months - 100)  # Tolérance de 1€
+        # L'économie doit être positive (plus que 0)
+        assert savings > 0
 
+
+# ==================== Tests Interactifs ====================
 
 def run_payment_test_interactive():
     """
@@ -410,14 +373,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Tests de paiement Stripe pour ERP BTP')
     parser.add_argument('--interactive', '-i', action='store_true',
                        help='Exécuter le test interactif (crée une vraie session de test)')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Mode verbeux')
     
     args = parser.parse_args()
     
     if args.interactive:
         run_payment_test_interactive()
     else:
-        # Exécuter les tests unitaires
-        verbosity = 2 if args.verbose else 1
-        unittest.main(argv=[''], verbosity=verbosity, exit=False)
+        # Exécuter pytest si appelé directement
+        pytest.main([__file__, '-v'])

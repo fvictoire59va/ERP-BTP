@@ -7,14 +7,14 @@ Ce répertoire contient les tests automatisés pour l'application ERP BTP.
 ```
 tests/
 ├── __init__.py
-├── test_stripe_payment.py    # Tests de paiement Stripe
+├── test_stripe_payment.py    # Tests de paiement Stripe (pytest)
 └── README.md                 # Ce fichier
 ```
 
 ## Installation des dépendances de test
 
 ```bash
-pip install pytest pytest-cov unittest
+pip install pytest
 ```
 
 ## Configuration pour les tests Stripe
@@ -32,17 +32,17 @@ export STRIPE_WEBHOOK_SECRET=whsec_votre_secret_webhook  # Optionnel
 
 ## Exécution des tests
 
-### Tests unitaires
+### Avec pytest (recommandé)
 
 ```bash
 # Tous les tests
-python -m pytest tests/ -v
+pytest tests/ -v
 
 # Tests de paiement uniquement
-python -m pytest tests/test_stripe_payment.py -v
+pytest tests/test_stripe_payment.py -v
 
 # Avec couverture de code
-python -m pytest tests/ --cov=erp --cov-report=html
+pytest tests/ --cov=erp --cov-report=html
 ```
 
 ### Test interactif de paiement
@@ -74,38 +74,58 @@ Pour tester les paiements, utilisez ces numéros de carte :
 - **CVC** : N'importe quel code à 3 chiffres
 - **Code postal** : N'importe quel code
 
-## Structure des tests de paiement
+## Structure des tests Stripe
 
-### `TestStripeServiceConfiguration`
-- Teste l'initialisation du service avec/sans clés
+### Fixtures pytest
 
-### `TestStripePlans`
+- `reset_stripe_service`: Réinitialise le singleton après chaque test
+- `stripe_service_with_keys`: Service Stripe avec clés de test
+- `stripe_service_without_keys`: Service Stripe sans clés
+
+### Classes de test
+
+#### `TestStripeServiceConfiguration`
+- Teste l'initialisation avec/sans clés
+
+#### `TestStripePlans`
 - Vérifie les plans disponibles (mensuel, annuel)
 - Vérifie les prix et les durées
 
-### `TestStripeCheckoutSession`
+#### `TestStripeCheckoutSession`
 - Teste la création de sessions Checkout
 - Teste la gestion des erreurs
 
-### `TestStripeWebhook`
+#### `TestStripeWebhook`
 - Teste la vérification des signatures webhook
 - Teste le traitement des événements
 
-### `TestStripeIntegrationFlow`
+#### `TestStripeIntegrationFlow`
 - Teste le flux complet de paiement
 
-### `TestPaymentAmounts`
+#### `TestPaymentAmounts`
 - Vérifie les montants en centimes
 - Vérifie les économies du plan annuel
 
 ## Ajout de nouveaux tests
 
-Pour ajouter de nouveaux tests :
+Pour ajouter de nouveaux tests avec pytest :
 
-1. Créer un fichier `test_*.py` dans ce répertoire
-2. Suivre la convention de nommage : `test_<fonctionnalité>.py`
-3. Utiliser `unittest.TestCase` ou les fonctions pytest
-4. Documenter les dépendances nécessaires
+```python
+import pytest
+
+class TestNewFeature:
+    """Description des tests"""
+    
+    def test_something(self, stripe_service_with_keys):
+        """Test quelque chose"""
+        # Arrange
+        
+        # Act
+        result = stripe_service_with_keys.do_something()
+        
+        # Assert
+        assert result is not None
+```
 
 ## CI/CD
 
@@ -118,6 +138,13 @@ Les tests peuvent être intégrés dans un pipeline CI/CD :
     STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
     STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_TEST_PUBLISHABLE_KEY }}
   run: |
-    pip install pytest pytest-cov
-    python -m pytest tests/ -v --cov=erp
+    pip install pytest
+    pytest tests/ -v
 ```
+
+## Notes
+
+- Les tests utilisent des **fixtures pytest** pour la configuration
+- Les assertions sont simples avec `assert` (pas besoin de `self.assertEqual`)
+- Les tests sont **isolés** et peuvent s'exécuter dans n'importe quel ordre
+- Les mocks et patches utilisent `unittest.mock`
